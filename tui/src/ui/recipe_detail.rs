@@ -4,7 +4,7 @@ use larder_core::{
 };
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
@@ -153,9 +153,9 @@ impl RecipeDetailState {
     }
 }
 
-pub fn render(frame: &mut Frame, state: &RecipeDetailState) {
-    if state.cooking_mode {
-        render_cooking_mode(frame, state);
+pub fn render(frame: &mut Frame, area: Rect, state: &RecipeDetailState) {
+    if state.cooking_mode() {
+        render_cooking_mode(frame, area, state);
         return;
     }
 
@@ -169,7 +169,7 @@ pub fn render(frame: &mut Frame, state: &RecipeDetailState) {
             Constraint::Min(1),
             Constraint::Length(1),
         ])
-        .split(frame.area());
+        .split(area);
 
     let mut header_lines = vec![Line::from(vec![Span::styled(
         &state.recipe.name,
@@ -295,14 +295,12 @@ pub fn render(frame: &mut Frame, state: &RecipeDetailState) {
         Paragraph::new(step_lines).block(Block::default().borders(Borders::ALL).title("Steps"));
     frame.render_widget(steps, chunks[3]);
 
-    let footer = Paragraph::new(
-        "q: back | c: cook | e: edit | d: delete | +/-: scale | g: shopping list | j/k: scroll",
-    )
+    let footer = Paragraph::new("Esc/b: back | c: cook | e: edit | +/-: scale | ?: help")
     .style(Style::default().fg(Color::DarkGray));
     frame.render_widget(footer, chunks[4]);
 }
 
-fn render_cooking_mode(frame: &mut Frame, state: &RecipeDetailState) {
+fn render_cooking_mode(frame: &mut Frame, area: Rect, state: &RecipeDetailState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(2)
@@ -311,7 +309,7 @@ fn render_cooking_mode(frame: &mut Frame, state: &RecipeDetailState) {
             Constraint::Min(1),
             Constraint::Length(3),
         ])
-        .split(frame.area());
+        .split(area);
 
     let total = state.steps.len();
     let current = state.current_step + 1;
@@ -371,9 +369,7 @@ fn render_cooking_mode(frame: &mut Frame, state: &RecipeDetailState) {
         frame.render_widget(step_widget, chunks[1]);
     }
 
-    let footer = Paragraph::new(
-        "j/→: next | k/←: prev | Space: timer | Esc/q: exit cooking mode",
-    )
+    let footer = Paragraph::new("j/k: steps | Space: timer | Esc: exit cook mode | ?: help")
     .style(Style::default().fg(Color::DarkGray));
     frame.render_widget(footer, chunks[2]);
 }

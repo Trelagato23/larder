@@ -1,7 +1,7 @@
 use larder_core::models::ShoppingListItem;
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
@@ -126,7 +126,7 @@ impl ShoppingListState {
     }
 }
 
-pub fn render(frame: &mut Frame, state: &mut ShoppingListState) {
+pub fn render(frame: &mut Frame, area: Rect, state: &mut ShoppingListState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
@@ -135,7 +135,7 @@ pub fn render(frame: &mut Frame, state: &mut ShoppingListState) {
             Constraint::Min(1),
             Constraint::Length(1),
         ])
-        .split(frame.area());
+        .split(area);
 
     let total = state.items.iter().filter(|i| !i.checked).count();
     let checked = state.items.iter().filter(|i| i.checked).count();
@@ -232,7 +232,7 @@ pub fn render(frame: &mut Frame, state: &mut ShoppingListState) {
         frame.render_stateful_widget(list, chunks[1], &mut state.list_state);
     }
 
-    let footer = Paragraph::new("q: back | j/k: navigate | c/Space: check | g: from meal plan | a: add | x: clear checked")
+    let footer = Paragraph::new("Space: check | a: add | g: from plan | x: clear done | ?: help")
         .style(Style::default().fg(Color::DarkGray));
     frame.render_widget(footer, chunks[2]);
 }

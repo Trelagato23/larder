@@ -1,6 +1,6 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
@@ -60,7 +60,7 @@ impl ImportState {
     }
 }
 
-pub fn render(frame: &mut Frame, state: &ImportState) {
+pub fn render(frame: &mut Frame, area: Rect, state: &ImportState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
@@ -70,7 +70,7 @@ pub fn render(frame: &mut Frame, state: &ImportState) {
             Constraint::Min(1),
             Constraint::Length(3),
         ])
-        .split(frame.area());
+        .split(area);
 
     let header = Paragraph::new("Import Recipe from URL")
         .style(
@@ -133,7 +133,7 @@ pub fn render(frame: &mut Frame, state: &ImportState) {
     let status_widget = Paragraph::new(status_text).style(Style::default().fg(status_color));
     frame.render_widget(status_widget, chunks[2]);
 
-    let footer = Paragraph::new("Enter: import | Esc: cancel | Type URL")
+    let footer = Paragraph::new("Enter: import | Esc: back | ?: help")
         .style(Style::default().fg(Color::DarkGray));
     frame.render_widget(footer, chunks[3]);
 }

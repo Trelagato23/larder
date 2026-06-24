@@ -2,7 +2,7 @@ use chrono::{Datelike, Duration, NaiveDate};
 use larder_core::models::{MealPlan, MealType};
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Row, Table},
@@ -101,7 +101,7 @@ impl MealPlanState {
     }
 }
 
-pub fn render(frame: &mut Frame, state: &mut MealPlanState) {
+pub fn render(frame: &mut Frame, area: Rect, state: &mut MealPlanState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
@@ -111,7 +111,7 @@ pub fn render(frame: &mut Frame, state: &mut MealPlanState) {
             Constraint::Min(1),
             Constraint::Length(1),
         ])
-        .split(frame.area());
+        .split(area);
 
     let week_end = state.week_start + Duration::days(6);
     let header = Paragraph::new(format!(
@@ -189,7 +189,7 @@ pub fn render(frame: &mut Frame, state: &mut MealPlanState) {
     frame.render_widget(meals_table, chunks[2]);
 
     let footer = Paragraph::new(
-        "q: back | ←/→: day | ↑/↓: meal | [/]: week | a: assign recipe | d: clear | g: shopping list",
+        "h/l: day | j/k: meal | [/]: week | a: assign | d: clear | g: shop | ?: help",
     )
     .style(Style::default().fg(Color::DarkGray));
     frame.render_widget(footer, chunks[3]);

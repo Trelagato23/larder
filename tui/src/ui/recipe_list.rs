@@ -1,7 +1,7 @@
 use larder_core::models::Recipe;
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
@@ -122,7 +122,7 @@ impl RecipeListState {
     }
 }
 
-pub fn render(frame: &mut Frame, state: &mut RecipeListState, status: &str) {
+pub fn render(frame: &mut Frame, area: Rect, state: &mut RecipeListState, status: &str) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
@@ -131,7 +131,7 @@ pub fn render(frame: &mut Frame, state: &mut RecipeListState, status: &str) {
             Constraint::Min(1),
             Constraint::Length(1),
         ])
-        .split(frame.area());
+        .split(area);
 
     let title = if state.pick_mode() {
         "Pick a recipe for meal plan".to_string()
@@ -203,7 +203,7 @@ pub fn render(frame: &mut Frame, state: &mut RecipeListState, status: &str) {
     } else if state.search_active {
         "Esc: cancel search | Type to search"
     } else {
-        "q: back | j/k or ↑↓: navigate | Enter: view | /: search | n: new recipe"
+        "j/k: navigate | Enter: view | /: search | n: new | ?: help | 1-4: sections"
     };
     let mut footer_text = help.to_string();
     if !status.is_empty() {

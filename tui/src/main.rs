@@ -15,9 +15,10 @@ use std::collections::HashMap;
 use std::io;
 use uuid::Uuid;
 
+mod app_mode;
 mod ui;
 
-use ui::dashboard::DashboardState;
+use app_mode::AppMode;
 use ui::editor::EditorState;
 use ui::import::ImportState;
 use ui::meal_plan::MealPlanState;
@@ -25,22 +26,10 @@ use ui::recipe_detail::RecipeDetailState;
 use ui::recipe_list::RecipeListState;
 use ui::shopping_list::ShoppingListState;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum AppMode {
-    Dashboard,
-    RecipeList,
-    RecipeDetail,
-    RecipeEditor,
-    Import,
-    MealPlan,
-    MealPlanPick,
-    ShoppingList,
-}
-
 struct App {
     mode: AppMode,
     should_quit: bool,
-    dashboard: DashboardState,
+    show_help: bool,
     recipe_list: RecipeListState,
     recipe_detail: Option<RecipeDetailState>,
     recipe_editor: Option<EditorState>,
@@ -60,9 +49,9 @@ impl App {
         let meal_plans = MealPlanService::new(pool.clone());
         let shopping = ShoppingListService::new(pool.clone());
         Self {
-            mode: AppMode::Dashboard,
+            mode: AppMode::RecipeList,
             should_quit: false,
-            dashboard: DashboardState::new(),
+            show_help: false,
             recipe_list: RecipeListState::new(),
             recipe_detail: None,
             recipe_editor: None,
@@ -219,6 +208,48 @@ impl App {
             .await?;
         self.status_message = format!("Added {} items to shopping list", count);
         Ok(())
+    }
+
+    fn in_text_input(&self) -> bool {
+        match self.mode {
+            AppMode::Import | AppMode::RecipeEditor => true,
+            AppMode::RecipeList => self.recipe_list.search_active(),
+            AppMode::ShoppingList => self.shopping_list.adding_item(),
+            _ => false,
+        }
+    }
+
+    fn navigate_to(&mut self, mode: AppMode, rt: &tokio::runtime::Runtime) {
+        self.show_help = false;
+        match mode {
+            AppMode::RecipeList => {
+                let _ = rt.block_on(self.load_recipes());
+            }
+            AppMode::MealPlan => {
+                let _ = rt.block_on(self.load_meal_plan());
+            }
+            AppMode::ShoppingList => {
+                let _ = rt.block_on(self.load_shopping_list());
+            }
+            AppMode::Import => {
+                self.import.clear();
+            }
+            _ => {}
+        }
+        if mode != AppMode::MealPlanPick {
+            self.recipe_list.set_pick_mode(false);
+        }
+        self.mode = mode;
+    }
+
+    fn go_back(&mut self) {
+        self.show_help = false;
+        self.mode = match self.mode {
+            AppMode::RecipeDetail => AppMode::RecipeList,
+            AppMode::RecipeEditor => AppMode::RecipeDetail,
+            AppMode::MealPlanPick => AppMode::MealPlan,
+            _ => AppMode::RecipeList,
+        };
     }
 
     async fn load_recipe_detail(&mut self, id: Uuid) -> Result<()> {
@@ -390,24 +421,41 @@ impl App {
                 }
             }
 
-            terminal.draw(|frame| match self.mode {
-                AppMode::Dashboard => ui::dashboard::render(frame, &self.dashboard),
-                AppMode::RecipeList | AppMode::MealPlanPick => {
-                    ui::recipe_list::render(frame, &mut self.recipe_list, &self.status_message)
-                }
-                AppMode::RecipeDetail => {
-                    if let Some(detail) = &self.recipe_detail {
-                        ui::recipe_detail::render(frame, detail);
+            terminal.draw(|frame| {
+                let (content, nav) = ui::content_and_nav(frame.area());
+
+                if !self.show_help {
+                    match self.mode {
+                        AppMode::RecipeList | AppMode::MealPlanPick => {
+                            ui::recipe_list::render(
+                                frame,
+                                content,
+                                &mut self.recipe_list,
+                                &self.status_message,
+                            );
+                        }
+                        AppMode::RecipeDetail => {
+                            if let Some(detail) = &self.recipe_detail {
+                                ui::recipe_detail::render(frame, content, detail);
+                            }
+                        }
+                        AppMode::RecipeEditor => {
+                            if let Some(editor) = &self.recipe_editor {
+                                ui::editor::render(frame, content, editor);
+                            }
+                        }
+                        AppMode::Import => ui::import::render(frame, content, &self.import),
+                        AppMode::MealPlan => {
+                            ui::meal_plan::render(frame, content, &mut self.meal_plan);
+                        }
+                        AppMode::ShoppingList => {
+                            ui::shopping_list::render(frame, content, &mut self.shopping_list);
+                        }
                     }
+                    ui::status_bar::render(frame, nav, self.mode.nav_tab());
+                } else {
+                    ui::help::render(frame, frame.area());
                 }
-                AppMode::RecipeEditor => {
-                    if let Some(editor) = &self.recipe_editor {
-                        ui::editor::render(frame, editor);
-                    }
-                }
-                AppMode::Import => ui::import::render(frame, &self.import),
-                AppMode::MealPlan => ui::meal_plan::render(frame, &mut self.meal_plan),
-                AppMode::ShoppingList => ui::shopping_list::render(frame, &mut self.shopping_list),
             })?;
 
             if event::poll(std::time::Duration::from_millis(100))? {
@@ -426,25 +474,50 @@ impl App {
         _modifiers: KeyModifiers,
         rt: &tokio::runtime::Runtime,
     ) {
-        match self.mode {
-            AppMode::Dashboard => match key {
-                KeyCode::Char('q') => self.should_quit = true,
-                KeyCode::Char('r') | KeyCode::Enter => self.mode = AppMode::RecipeList,
-                KeyCode::Char('i') => self.mode = AppMode::Import,
-                KeyCode::Char('m') => {
-                    if let Err(e) = rt.block_on(self.load_meal_plan()) {
-                        self.status_message = format!("Error: {}", e);
-                    }
-                    self.mode = AppMode::MealPlan;
+        if self.show_help {
+            if matches!(key, KeyCode::Esc | KeyCode::Char('?')) {
+                self.show_help = false;
+            }
+            return;
+        }
+
+        if key == KeyCode::Char('?') {
+            self.show_help = true;
+            return;
+        }
+
+        if key == KeyCode::Char('q') && !self.in_text_input() {
+            self.should_quit = true;
+            return;
+        }
+
+        if !self.in_text_input() {
+            match key {
+                KeyCode::Char('1') | KeyCode::Char('r') => {
+                    self.navigate_to(AppMode::RecipeList, rt);
+                    return;
                 }
-                KeyCode::Char('s') => {
-                    if let Err(e) = rt.block_on(self.load_shopping_list()) {
-                        self.status_message = format!("Error: {}", e);
-                    }
-                    self.mode = AppMode::ShoppingList;
+                KeyCode::Char('2') | KeyCode::Char('i') => {
+                    self.navigate_to(AppMode::Import, rt);
+                    return;
+                }
+                KeyCode::Char('3') | KeyCode::Char('m') => {
+                    self.navigate_to(AppMode::MealPlan, rt);
+                    return;
+                }
+                KeyCode::Char('4') | KeyCode::Char('s') => {
+                    self.navigate_to(AppMode::ShoppingList, rt);
+                    return;
+                }
+                KeyCode::Char('b') => {
+                    self.go_back();
+                    return;
                 }
                 _ => {}
-            },
+            }
+        }
+
+        match self.mode {
             AppMode::Import => match key {
                 KeyCode::Enter if !self.import.url.is_empty() && !self.import.importing => {
                     let url = self.import.url.clone();
@@ -454,8 +527,7 @@ impl App {
                     }
                 }
                 KeyCode::Esc if !self.import.importing => {
-                    self.import.clear();
-                    self.mode = AppMode::Dashboard;
+                    self.navigate_to(AppMode::RecipeList, rt);
                 }
                 KeyCode::Char(c) if !self.import.importing => {
                     self.import.push_char(c);
@@ -488,11 +560,7 @@ impl App {
                     self.recipe_list.clear_search();
                 }
                 KeyCode::Esc if self.mode == AppMode::MealPlanPick => {
-                    self.recipe_list.set_pick_mode(false);
-                    self.mode = AppMode::MealPlan;
-                }
-                KeyCode::Char('q') | KeyCode::Esc if self.mode == AppMode::RecipeList => {
-                    self.mode = AppMode::Dashboard
+                    self.go_back();
                 }
                 KeyCode::Down | KeyCode::Char('j') => self.recipe_list.select_next(),
                 KeyCode::Up | KeyCode::Char('k') => self.recipe_list.select_previous(),
@@ -558,7 +626,7 @@ impl App {
                     .unwrap_or(false);
                 if in_cooking {
                     match key {
-                        KeyCode::Char('q') | KeyCode::Esc => {
+                        KeyCode::Esc => {
                             if let Some(d) = &mut self.recipe_detail {
                                 d.toggle_cooking_mode();
                             }
@@ -582,7 +650,7 @@ impl App {
                     }
                 } else {
                     match key {
-                        KeyCode::Char('q') | KeyCode::Esc => self.mode = AppMode::RecipeList,
+                        KeyCode::Esc | KeyCode::Char('b') => self.mode = AppMode::RecipeList,
                         KeyCode::Down | KeyCode::Char('j') => {
                             if let Some(d) = &mut self.recipe_detail {
                                 d.scroll_down();
@@ -633,7 +701,6 @@ impl App {
                 }
             }
             AppMode::MealPlan => match key {
-                KeyCode::Char('q') | KeyCode::Esc => self.mode = AppMode::Dashboard,
                 KeyCode::Right | KeyCode::Char('l') => {
                     self.meal_plan.navigate_next_day();
                     if let Err(e) = rt.block_on(self.load_meal_plan()) {
@@ -692,7 +759,6 @@ impl App {
                     }
                 } else {
                     match key {
-                        KeyCode::Char('q') | KeyCode::Esc => self.mode = AppMode::Dashboard,
                         KeyCode::Down | KeyCode::Char('j') => self.shopping_list.select_next(),
                         KeyCode::Up | KeyCode::Char('k') => self.shopping_list.select_previous(),
                         KeyCode::Char('c') | KeyCode::Char(' ') => {

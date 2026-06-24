@@ -1,7 +1,7 @@
 use larder_core::models::Recipe;
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
@@ -186,7 +186,7 @@ impl EditorState {
     }
 }
 
-pub fn render(frame: &mut Frame, state: &EditorState) {
+pub fn render(frame: &mut Frame, area: Rect, state: &EditorState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
@@ -195,7 +195,7 @@ pub fn render(frame: &mut Frame, state: &EditorState) {
             Constraint::Min(1),
             Constraint::Length(1),
         ])
-        .split(frame.area());
+        .split(area);
 
     let header = Paragraph::new("Edit Recipe")
         .style(
