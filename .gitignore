@@ -1,0 +1,11 @@
+# Rust
+/target/
+*.db
+
+# Local
+.env
+
+# Editors
+*.swp
+.vscode/
+.idea/

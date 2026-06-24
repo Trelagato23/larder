@@ -1,0 +1,46 @@
+[workspace]
+members = ["core", "server", "tui"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Trelagato23"]
+license = "AGPL-3.0"
+repository = "https://github.com/Trelagato23/larder"
+description = "Recipe manager with CLI, TUI, and web UI"
+
+[workspace.dependencies]
+# Core
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono", "uuid"] }
+tokio = { version = "1.0", features = ["full"] }
+thiserror = "2.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Server
+axum = { version = "0.8", features = ["macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["fs", "cors", "trace"] }
+jsonwebtoken = "9.0"
+argon2 = "0.5"
+axum-extra = "0.10"
+multipart = "0.18"
+
+# TUI
+ratatui = "0.29"
+crossterm = "0.28"
+clap = { version = "4.0", features = ["derive"] }
+color-eyre = "0.6"
+strum = { version = "0.26", features = ["derive"] }
+
+# Shared
+reqwest = { version = "0.12", features = ["json", "blocking"] }
+scraper = "0.22"
+image = "0.25"
+rust_decimal = { version = "1.0", features = ["serde"] }

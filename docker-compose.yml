@@ -1,0 +1,13 @@
+services:
+  larder:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - larder-data:/data
+    environment:
+      - DATABASE_URL=sqlite:/data/larder.db
+    restart: unless-stopped
+
+volumes:
+  larder-data:
