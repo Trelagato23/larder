@@ -341,7 +341,7 @@ async fn main() -> Result<()> {
                     io::stdin().read_line(&mut input)?;
                 }
             }
-            println!("\nDone! Enjoy your meal.");
+            println!("\nDone.");
         }
         Commands::MealPlan { generate } => {
             let user_id = Uuid::nil();

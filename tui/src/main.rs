@@ -257,8 +257,8 @@ impl App {
     async fn create_sample_recipe(&mut self) -> Result<()> {
         let recipe = Recipe {
             id: Uuid::new_v4(),
-            name: "Simple Pasta".to_string(),
-            description: Some("A quick and easy pasta dish".to_string()),
+            name: "Pasta".to_string(),
+            description: Some("Tomato sauce and garlic".to_string()),
             image_url: None,
             servings: 2,
             prep_time_minutes: Some(5),
