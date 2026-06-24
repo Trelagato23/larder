@@ -17,6 +17,7 @@ pub async fn init_db(database_url: &str) -> Result<Pool> {
     let pool = Pool::connect_with(options).await?;
     run_migrations(&pool).await?;
     ensure_default_user(&pool).await?;
+    crate::seed::seed_if_empty(&pool).await?;
     Ok(pool)
 }
 

@@ -28,6 +28,11 @@ The binary lands in `~/.cargo/bin` — make sure that is on your `PATH`.
 
 ```bash
 larder init
+```
+
+A fresh database gets four starter recipes (breakfast, lunch, dinner, snack) on today's meal plan.
+
+```bash
 larder import https://example.com/some-recipe
 larder list
 larder search chicken
