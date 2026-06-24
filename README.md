@@ -4,9 +4,25 @@ Recipe manager with a CLI, terminal UI, and small web UI. SQLite backend, single
 
 ## Build
 
+Clone the repo, then from its root:
+
+```bash
+git clone https://github.com/Trelagato23/larder.git
+cd larder
+cargo install --path tui --bin larder --bin larder-tui
+cargo install --path server --bin larder-server
+```
+
+`larder tui` and `larder serve` spawn the other binaries — all three need to be installed (or on your `PATH`).
+
+Or build without installing:
+
 ```bash
 cargo build --release
+./target/release/larder init
 ```
+
+The binary lands in `~/.cargo/bin` — make sure that is on your `PATH`.
 
 ## Usage
 

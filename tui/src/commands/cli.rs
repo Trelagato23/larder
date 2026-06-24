@@ -411,17 +411,33 @@ async fn main() -> Result<()> {
 }
 
 fn run_sibling_binary(name: &str, database_url: &str) -> Result<()> {
+    use std::path::PathBuf;
     use std::process::Stdio;
 
-    let current = std::env::current_exe()?;
-    let binary = current.with_file_name(name);
-    let status = std::process::Command::new(&binary)
+    let program = {
+        let current = std::env::current_exe()?;
+        let sibling = current.with_file_name(name);
+        if sibling.exists() {
+            sibling
+        } else {
+            PathBuf::from(name)
+        }
+    };
+
+    let status = std::process::Command::new(&program)
         .env("DATABASE_URL", database_url)
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
-        .map_err(|e| anyhow::anyhow!("Failed to launch {} at {}: {}", name, binary.display(), e))?;
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to launch {} (tried {}): {}\nInstall with: cargo install --path tui --bin larder --bin larder-tui && cargo install --path server --bin larder-server",
+                name,
+                program.display(),
+                e
+            )
+        })?;
 
     if !status.success() {
         anyhow::bail!("{} exited with {}", name, status);
