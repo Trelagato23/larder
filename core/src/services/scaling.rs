@@ -5,11 +5,23 @@ pub fn scale_ingredient(
     original_servings: u32,
     target_servings: u32,
 ) -> Decimal {
+    scale_ingredient_by_factor(quantity, combined_scale_factor(original_servings, target_servings, Decimal::ONE))
+}
+
+/// Combined multiplier: serving adjustment × batch count.
+pub fn combined_scale_factor(
+    original_servings: u32,
+    target_servings: u32,
+    batches: Decimal,
+) -> Decimal {
     if original_servings == 0 {
-        return quantity.clone();
+        return batches;
     }
-    let scale = Decimal::from(target_servings) / Decimal::from(original_servings);
-    quantity * scale
+    (Decimal::from(target_servings) / Decimal::from(original_servings)) * batches
+}
+
+pub fn scale_ingredient_by_factor(quantity: &Decimal, factor: Decimal) -> Decimal {
+    quantity * factor
 }
 
 pub fn format_quantity(qty: &Decimal) -> String {
@@ -27,15 +39,20 @@ pub fn format_quantity(qty: &Decimal) -> String {
 }
 
 pub fn scale_display_text(display: &str, original_servings: u32, target_servings: u32) -> String {
-    if original_servings == target_servings || original_servings == 0 {
+    scale_display_by_factor(
+        display,
+        combined_scale_factor(original_servings, target_servings, Decimal::ONE),
+    )
+}
+
+pub fn scale_display_by_factor(display: &str, factor: Decimal) -> String {
+    if factor == Decimal::ONE {
         return display.to_string();
     }
 
-    let scale = Decimal::from(target_servings) / Decimal::from(original_servings);
-
     if let Some((qty_str, rest)) = extract_leading_number(display) {
         if let Ok(qty) = qty_str.parse::<Decimal>() {
-            let scaled = qty * scale;
+            let scaled = qty * factor;
             return format!("{}{}", format_quantity(&scaled), rest);
         }
     }

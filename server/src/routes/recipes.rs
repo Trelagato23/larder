@@ -20,6 +20,7 @@ pub struct CreateRecipeRequest {
     pub source_url: Option<String>,
     pub rating: Option<u8>,
     pub difficulty: Option<String>,
+    pub menu_price: Option<String>,
     #[serde(default)]
     pub ingredients: Option<Vec<IngredientInput>>,
     #[serde(default)]
@@ -33,6 +34,8 @@ pub struct IngredientInput {
     pub quantity: Option<String>,
     pub unit: Option<String>,
     pub category: Option<String>,
+    pub cost_per_unit: Option<String>,
+    pub line_cost: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -53,6 +56,7 @@ pub struct RecipeResponse {
     pub source_url: Option<String>,
     pub rating: Option<u8>,
     pub difficulty: Option<String>,
+    pub menu_price: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -74,6 +78,7 @@ impl From<Recipe> for RecipeResponse {
                 Difficulty::Medium => "medium".to_string(),
                 Difficulty::Hard => "hard".to_string(),
             }),
+            menu_price: r.menu_price.map(|p| p.to_string()),
             created_at: r.created_at,
         }
     }
@@ -117,6 +122,8 @@ async fn save_ingredients_steps(
                     note: None,
                     display,
                     category: i.category,
+                    cost_per_unit: i.cost_per_unit.and_then(|p| p.parse().ok()),
+                    line_cost: i.line_cost.and_then(|p| p.parse().ok()),
                 }
             })
             .collect();
@@ -192,6 +199,7 @@ pub async fn create(
         user_id: Uuid::nil(),
         rating: body.rating,
         difficulty,
+        menu_price: body.menu_price.and_then(|p| p.parse().ok()),
     };
 
     let id = state
@@ -257,6 +265,7 @@ pub async fn update(
         user_id: Uuid::nil(),
         rating: body.rating,
         difficulty,
+        menu_price: body.menu_price.and_then(|p| p.parse().ok()),
     };
 
     state
@@ -307,6 +316,9 @@ pub struct IngredientResponse {
     pub quantity: Option<String>,
     pub unit: Option<String>,
     pub note: Option<String>,
+    pub cost_per_unit: Option<String>,
+    pub line_cost: Option<String>,
+    pub scaled_cost: Option<String>,
 }
 
 pub async fn ingredients(
@@ -327,6 +339,9 @@ pub async fn ingredients(
             quantity: i.quantity.map(|q| q.to_string()),
             unit: i.unit,
             note: i.note,
+            cost_per_unit: i.cost_per_unit.map(|p| p.to_string()),
+            line_cost: i.line_cost.map(|p| p.to_string()),
+            scaled_cost: None,
         })
         .collect();
 

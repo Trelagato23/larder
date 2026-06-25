@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -18,6 +19,8 @@ pub struct Recipe {
     pub user_id: Uuid,
     pub rating: Option<u8>,
     pub difficulty: Option<Difficulty>,
+    /// Sell price for food-cost calculations.
+    pub menu_price: Option<Decimal>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

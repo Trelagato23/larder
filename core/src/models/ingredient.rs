@@ -12,6 +12,9 @@ pub struct RecipeIngredient {
     pub note: Option<String>,
     pub display: String,
     pub category: Option<String>,
+    pub cost_per_unit: Option<Decimal>,
+    /// Flat cost for this line at recipe yield (used when set instead of qty × unit cost).
+    pub line_cost: Option<Decimal>,
 }
 
 impl RecipeIngredient {

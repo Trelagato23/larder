@@ -161,9 +161,12 @@ impl App {
             return Ok(());
         };
         let recipe_id = editor.recipe_id();
-        let ingredients = editor.build_ingredients(recipe_id);
-        match (editor.build_recipe(), editor.build_steps(recipe_id)) {
-            (Ok(recipe), Ok(steps)) => {
+        match (
+            editor.build_recipe(),
+            editor.build_ingredients(recipe_id),
+            editor.build_steps(recipe_id),
+        ) {
+            (Ok(recipe), Ok(ingredients), Ok(steps)) => {
                 self.recipes.update_recipe(&recipe).await?;
                 self.recipes.replace_ingredients(recipe_id, &ingredients).await?;
                 self.recipes.replace_steps(recipe_id, &steps).await?;
@@ -172,7 +175,7 @@ impl App {
                 self.mode = AppMode::RecipeDetail;
                 self.status_message = "Recipe saved".to_string();
             }
-            (Err(msg), _) | (_, Err(msg)) => {
+            (Err(msg), _, _) | (_, Err(msg), _) | (_, _, Err(msg)) => {
                 if let Some(editor) = &mut self.recipe_editor {
                     editor.set_status(msg);
                 }
@@ -349,6 +352,7 @@ impl App {
             user_id: Uuid::nil(),
             rating: Some(4),
             difficulty: Some(Difficulty::Easy),
+            menu_price: None,
         };
 
         let id = self.recipes.create_recipe(&recipe).await?;
@@ -363,6 +367,8 @@ impl App {
                 note: None,
                 display: "200 g pasta".to_string(),
                 category: Some("Pantry".to_string()),
+                cost_per_unit: None,
+                line_cost: None,
             },
             RecipeIngredient {
                 id: Uuid::new_v4(),
@@ -373,6 +379,8 @@ impl App {
                 note: None,
                 display: "1 cup tomato sauce".to_string(),
                 category: Some("Canned".to_string()),
+                cost_per_unit: None,
+                line_cost: None,
             },
             RecipeIngredient {
                 id: Uuid::new_v4(),
@@ -383,6 +391,8 @@ impl App {
                 note: Some("minced".to_string()),
                 display: "2 cloves garlic, minced".to_string(),
                 category: Some("Produce".to_string()),
+                cost_per_unit: None,
+                line_cost: None,
             },
         ];
 
@@ -707,6 +717,9 @@ impl App {
                             KeyCode::Char('t') if editor.panel() == EditorPanel::Steps => {
                                 editor.edit_step_timer();
                             }
+                            KeyCode::Char('c') if editor.panel() == EditorPanel::Ingredients => {
+                                editor.edit_ingredient_cost();
+                            }
                             KeyCode::Backspace => editor.backspace(),
                             KeyCode::Char(c) => editor.push_char(c),
                             _ => {}
@@ -799,6 +812,16 @@ impl App {
                         KeyCode::Char('-') => {
                             if let Some(d) = &mut self.recipe_detail {
                                 d.scale_down();
+                            }
+                        }
+                        KeyCode::Char(']') => {
+                            if let Some(d) = &mut self.recipe_detail {
+                                d.batch_up();
+                            }
+                        }
+                        KeyCode::Char('[') => {
+                            if let Some(d) = &mut self.recipe_detail {
+                                d.batch_down();
                             }
                         }
                         KeyCode::Char('g') => {

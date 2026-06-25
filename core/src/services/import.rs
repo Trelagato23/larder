@@ -119,6 +119,7 @@ impl ImportService {
             user_id: Uuid::nil(),
             rating: None,
             difficulty: None,
+            menu_price: None,
         };
 
         Some(ImportedRecipe {
@@ -205,6 +206,8 @@ impl ImportService {
                     note: None,
                     display: s.clone(),
                     category: None,
+                    cost_per_unit: None,
+                    line_cost: None,
                 }];
             }
             _ => return vec![],
@@ -229,6 +232,8 @@ impl ImportService {
                     note,
                     display: text.clone(),
                     category: None,
+                    cost_per_unit: None,
+                    line_cost: None,
                 })
             })
             .collect()
@@ -654,6 +659,7 @@ impl ImportService {
                 user_id: Uuid::nil(),
                 rating: None,
                 difficulty: None,
+                menu_price: None,
             },
             ingredients: vec![],
             steps: vec![],

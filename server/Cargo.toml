@@ -22,3 +22,4 @@ jsonwebtoken.workspace = true
 argon2.workspace = true
 axum-extra.workspace = true
 anyhow.workspace = true
+rust_decimal.workspace = true

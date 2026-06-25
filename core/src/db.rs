@@ -28,6 +28,14 @@ async fn run_migrations(pool: &Pool) -> Result<()> {
         .execute(pool)
         .await?;
 
+    for stmt in include_str!("../../migrations/002_costs_and_pricing.sql")
+        .split(';')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        let _ = sqlx::query(stmt).execute(pool).await;
+    }
+
     info!("Migrations complete");
     Ok(())
 }

@@ -3,7 +3,9 @@ use axum::{
     http::StatusCode,
     response::Html,
 };
-use larder_core::services::scaling::scale_display_text;
+use larder_core::services::cost::{format_money, ingredient_line_cost, recipe_ingredient_cost, food_cost_percent};
+use larder_core::services::scaling::{combined_scale_factor, scale_display_by_factor};
+use rust_decimal::Decimal;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -13,6 +15,8 @@ use crate::AppState;
 pub struct PrepQuery {
     #[serde(default)]
     pub servings: Option<u32>,
+    #[serde(default)]
+    pub batches: Option<String>,
 }
 
 fn escape_html(s: &str) -> String {
@@ -47,7 +51,14 @@ pub async fn handler(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let servings = params.servings.unwrap_or(recipe.servings).max(1);
-    let scaled = servings != recipe.servings;
+    let batches: Decimal = params
+        .batches
+        .as_deref()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(Decimal::ONE)
+        .max(Decimal::ZERO);
+    let factor = combined_scale_factor(recipe.servings, servings, batches.max(Decimal::ONE));
+    let scaled = factor != Decimal::ONE;
 
     let mut meta = Vec::new();
     if let Some(p) = recipe.prep_time_minutes {
@@ -61,27 +72,45 @@ pub async fn handler(
     }
     let yield_line = if scaled {
         format!(
-            "Yield: {} servings (scaled from {})",
-            servings, recipe.servings
+            "Yield: {} servings × {} batch(es) (recipe base: {})",
+            servings, batches, recipe.servings
         )
     } else {
-        format!("Yield: {} servings", servings)
+        format!("Yield: {} servings per batch", servings)
     };
 
     let ingredient_rows: String = ingredients
         .iter()
         .map(|i| {
-            let display = if scaled {
-                scale_display_text(&i.display, recipe.servings, servings)
-            } else {
-                i.display.clone()
-            };
+            let display = scale_display_by_factor(&i.display, factor);
+            let cost_note = ingredient_line_cost(i, factor)
+                .map(|c| format!(" <span class=\"cost\">({})</span>", format_money(c)))
+                .unwrap_or_default();
             format!(
-                "<li><span class=\"box\"></span> {}</li>",
-                escape_html(&display)
+                "<li><span class=\"box\"></span> {}{}</li>",
+                escape_html(&display),
+                cost_note
             )
         })
         .collect();
+
+    let total_cost = recipe_ingredient_cost(&ingredients, factor);
+    let cost_block = if total_cost > Decimal::ZERO {
+        let mut line = format!("<p class=\"cost-total\">Est. food cost: <strong>{}</strong>", format_money(total_cost));
+        if let Some(menu) = recipe.menu_price {
+            if let Some(pct) = food_cost_percent(total_cost, menu) {
+                line.push_str(&format!(
+                    " &nbsp;|&nbsp; {:.1}% of menu {}",
+                    pct,
+                    format_money(menu)
+                ));
+            }
+        }
+        line.push_str("</p>");
+        line
+    } else {
+        String::new()
+    };
 
     let step_rows: String = steps
         .iter()
@@ -125,7 +154,8 @@ pub async fn handler(
   .box {{ display: inline-block; width: 0.85rem; height: 0.85rem; border: 1.5px solid #111; flex-shrink: 0; }}
   ol.steps {{ padding-left: 1.25rem; margin: 0; }}
   ol.steps li {{ padding: 0.5rem 0; line-height: 1.5; font-size: 1.05rem; }}
-  .timer {{ font-weight: bold; white-space: nowrap; }}
+  .cost {{ color: #2a6; font-size: 0.9rem; }}
+  .cost-total {{ margin: 0.75rem 0 0; font-size: 0.95rem; color: #333; }}
   .footer {{ margin-top: 1.5rem; padding-top: 0.5rem; border-top: 1px solid #ccc; font-size: 0.8rem; color: #666; }}
   .noprint {{ margin: 1rem; }}
   @media print {{ .noprint {{ display: none; }} }}
@@ -138,6 +168,7 @@ pub async fn handler(
 {description}
 <h2>Ingredients</h2>
 <ul class="ingredients">{ingredient_rows}</ul>
+{cost_block}
 <h2>Method</h2>
 <ol class="steps">{step_rows}</ol>
 <div class="footer">Printed {date} · Larder prep sheet</div>
@@ -153,6 +184,7 @@ pub async fn handler(
             .join(""),
         description = description,
         ingredient_rows = ingredient_rows,
+        cost_block = cost_block,
         step_rows = step_rows,
         date = chrono::Local::now().format("%Y-%m-%d"),
     );

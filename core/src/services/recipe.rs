@@ -19,6 +19,7 @@ struct RecipeRow {
     source_url: Option<String>,
     rating: Option<i64>,
     difficulty: Option<String>,
+    menu_price: Option<String>,
     user_id: String,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -46,6 +47,7 @@ impl From<RecipeRow> for Recipe {
                 "hard" => Some(Difficulty::Hard),
                 _ => None,
             }),
+            menu_price: row.menu_price.and_then(|p| p.parse().ok()),
         }
     }
 }
@@ -60,6 +62,8 @@ struct IngredientRow {
     note: Option<String>,
     display: String,
     category: Option<String>,
+    cost_per_unit: Option<String>,
+    line_cost: Option<String>,
 }
 
 impl From<IngredientRow> for RecipeIngredient {
@@ -73,6 +77,8 @@ impl From<IngredientRow> for RecipeIngredient {
             note: row.note,
             display: row.display,
             category: row.category,
+            cost_per_unit: row.cost_per_unit.and_then(|p| p.parse().ok()),
+            line_cost: row.line_cost.and_then(|p| p.parse().ok()),
         }
     }
 }
@@ -118,7 +124,7 @@ impl RecipeService {
         });
 
         sqlx::query(
-            "INSERT INTO recipes (id, name, description, image_url, servings, prep_time_minutes, cook_time_minutes, total_time_minutes, source_url, rating, difficulty, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO recipes (id, name, description, image_url, servings, prep_time_minutes, cook_time_minutes, total_time_minutes, source_url, rating, difficulty, menu_price, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(id.to_string())
         .bind(&recipe.name)
@@ -131,6 +137,7 @@ impl RecipeService {
         .bind(&recipe.source_url)
         .bind(recipe.rating.map(|v| v as i64))
         .bind(difficulty_str)
+        .bind(recipe.menu_price.as_ref().map(|p| p.to_string()))
         .bind(recipe.user_id.to_string())
         .execute(&self.pool)
         .await?;
@@ -203,7 +210,7 @@ impl RecipeService {
         });
 
         sqlx::query(
-            "UPDATE recipes SET name = ?, description = ?, image_url = ?, servings = ?, prep_time_minutes = ?, cook_time_minutes = ?, total_time_minutes = ?, source_url = ?, rating = ?, difficulty = ?, updated_at = datetime('now') WHERE id = ?"
+            "UPDATE recipes SET name = ?, description = ?, image_url = ?, servings = ?, prep_time_minutes = ?, cook_time_minutes = ?, total_time_minutes = ?, source_url = ?, rating = ?, difficulty = ?, menu_price = ?, updated_at = datetime('now') WHERE id = ?"
         )
         .bind(&recipe.name)
         .bind(&recipe.description)
@@ -215,6 +222,7 @@ impl RecipeService {
         .bind(&recipe.source_url)
         .bind(recipe.rating.map(|v| v as i64))
         .bind(difficulty_str)
+        .bind(recipe.menu_price.as_ref().map(|p| p.to_string()))
         .bind(recipe.id.to_string())
         .execute(&self.pool)
         .await?;
@@ -245,7 +253,7 @@ impl RecipeService {
     pub async fn add_ingredient(&self, ingredient: &RecipeIngredient) -> Result<Uuid> {
         let id = Uuid::new_v4();
         sqlx::query(
-            "INSERT INTO recipe_ingredients (id, recipe_id, ingredient, quantity, unit, note, display, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO recipe_ingredients (id, recipe_id, ingredient, quantity, unit, note, display, category, cost_per_unit, line_cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(id.to_string())
         .bind(ingredient.recipe_id.to_string())
@@ -255,6 +263,8 @@ impl RecipeService {
         .bind(&ingredient.note)
         .bind(&ingredient.display)
         .bind(&ingredient.category)
+        .bind(ingredient.cost_per_unit.as_ref().map(|p| p.to_string()))
+        .bind(ingredient.line_cost.as_ref().map(|p| p.to_string()))
         .execute(&self.pool)
         .await?;
 

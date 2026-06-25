@@ -1,7 +1,11 @@
 use larder_core::{
     models::{Recipe, RecipeIngredient, RecipeStep, Tag},
-    services::scaling::scale_display_text,
+    services::{
+        cost::{format_money, ingredient_line_cost, recipe_ingredient_cost, food_cost_percent},
+        scaling::{combined_scale_factor, scale_display_by_factor},
+    },
 };
+use rust_decimal::Decimal;
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
@@ -20,6 +24,7 @@ pub struct RecipeDetailState {
     cooking_mode: bool,
     current_step: usize,
     display_servings: u32,
+    display_batches: Decimal,
     timer_remaining: Option<u32>,
     timer_running: bool,
     last_tick: Option<Instant>,
@@ -42,6 +47,7 @@ impl RecipeDetailState {
             cooking_mode: false,
             current_step: 0,
             display_servings,
+            display_batches: Decimal::ONE,
             timer_remaining: None,
             timer_running: false,
             last_tick: None,
@@ -149,15 +155,33 @@ impl RecipeDetailState {
     }
 
     fn scaled_ingredient_display(&self, ingredient: &RecipeIngredient) -> String {
-        if self.display_servings == self.recipe.servings {
-            ingredient.display.clone()
-        } else {
-            scale_display_text(
-                &ingredient.display,
-                self.recipe.servings,
-                self.display_servings,
-            )
+        scale_display_by_factor(&ingredient.display, self.scale_factor())
+    }
+
+    pub fn batch_up(&mut self) {
+        self.display_batches += Decimal::ONE;
+    }
+
+    pub fn batch_down(&mut self) {
+        if self.display_batches > Decimal::ONE {
+            self.display_batches -= Decimal::ONE;
         }
+    }
+
+    fn scale_factor(&self) -> Decimal {
+        combined_scale_factor(
+            self.recipe.servings,
+            self.display_servings,
+            self.display_batches,
+        )
+    }
+
+    pub fn total_cost(&self) -> Decimal {
+        recipe_ingredient_cost(&self.ingredients, self.scale_factor())
+    }
+
+    fn ingredient_cost_label(&self, ingredient: &RecipeIngredient) -> Option<String> {
+        ingredient_line_cost(ingredient, self.scale_factor()).map(format_money)
     }
 }
 
@@ -217,13 +241,15 @@ pub fn render(frame: &mut Frame, area: Rect, state: &RecipeDetailState, status: 
             Style::default().fg(Color::Yellow),
         ));
     }
-    let servings_label = if state.display_servings != state.recipe.servings {
+    let servings_label = if state.display_batches != Decimal::ONE
+        || state.display_servings != state.recipe.servings
+    {
         format!(
-            "{} servings (scaled from {})",
-            state.display_servings, state.recipe.servings
+            "{} servings × {} batch(es) (base {})",
+            state.display_servings, state.display_batches, state.recipe.servings
         )
     } else {
-        format!("{} servings", state.display_servings)
+        format!("{} servings / batch", state.display_servings)
     };
     meta_spans.push(Span::styled(
         servings_label,
@@ -265,13 +291,40 @@ pub fn render(frame: &mut Frame, area: Rect, state: &RecipeDetailState, status: 
     )])];
 
     for i in &state.ingredients {
-        body_lines.push(Line::from(vec![
+        let mut spans = vec![
             Span::raw("  "),
             Span::styled(
                 format!("- {}", state.scaled_ingredient_display(i)),
                 Style::default().fg(Color::White),
             ),
-        ]));
+        ];
+        if let Some(cost) = state.ingredient_cost_label(i) {
+            spans.push(Span::styled(
+                format!("  ({})", cost),
+                Style::default().fg(Color::Green),
+            ));
+        }
+        body_lines.push(Line::from(spans));
+    }
+
+    let total_cost = state.total_cost();
+    if total_cost > Decimal::ZERO {
+        body_lines.push(Line::from(""));
+        let mut cost_line = vec![Span::styled(
+            format!("Est. food cost: {}", format_money(total_cost)),
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        )];
+        if let Some(menu) = state.recipe.menu_price {
+            if let Some(pct) = food_cost_percent(total_cost, menu) {
+                cost_line.push(Span::styled(
+                    format!("  |  {:.1}% of menu {}", pct, format_money(menu)),
+                    Style::default().fg(Color::Cyan),
+                ));
+            }
+        }
+        body_lines.push(Line::from(cost_line));
     }
 
     body_lines.push(Line::from(""));
@@ -306,7 +359,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &RecipeDetailState, status: 
         .scroll((0, state.scroll));
     frame.render_widget(body, chunks[2]);
 
-    let mut footer = "Esc/b: back | j/k: scroll | c: cook | e: edit | d: delete | +/-: scale | g: shop | ?: help".to_string();
+    let mut footer = "Esc/b: back | j/k: scroll | +/-: servings | [/]: batches | c: cook | e: edit | ?: help".to_string();
     if !status.is_empty() {
         footer = format!("{} | {}", status, footer);
     }

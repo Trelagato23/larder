@@ -5,6 +5,7 @@ pub mod shopping_list;
 pub mod import;
 pub mod export;
 pub mod scaling;
+pub mod cost;
 pub mod cookbook;
 pub mod tag;
 
@@ -14,5 +15,6 @@ pub use meal_plan::MealPlanService;
 pub use shopping_list::ShoppingListService;
 pub use import::{ImportService, ImportedRecipe};
 pub use export::ExportService;
+pub use cost::{food_cost_percent, format_money, ingredient_line_cost, recipe_ingredient_cost};
 pub use cookbook::CookbookService;
 pub use tag::TagService;

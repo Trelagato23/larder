@@ -22,7 +22,7 @@ pub async fn seed_if_empty(pool: &SqlitePool) -> Result<()> {
     let meal_plans = MealPlanService::new(pool.clone());
     let today = Utc::now().date_naive();
 
-    let samples: [(&str, &str, MealType, u32, u32, u32, Difficulty, u8, &[(&str, &str, &str)], &[&str]); 4] = [
+    let samples: [(&str, &str, MealType, u32, u32, u32, Difficulty, u8, Option<&str>, &[(&str, &str, &str, Option<&str>)], &[&str]); 4] = [
         (
             "Scrambled Eggs",
             "Quick morning eggs with butter and salt.",
@@ -32,10 +32,11 @@ pub async fn seed_if_empty(pool: &SqlitePool) -> Result<()> {
             5,
             Difficulty::Easy,
             4,
+            Some("6.00"),
             &[
-                ("eggs", "3", "large"),
-                ("butter", "1", "tbsp"),
-                ("salt", "1", "pinch"),
+                ("eggs", "3", "large", Some("1.20")),
+                ("butter", "1", "tbsp", Some("0.25")),
+                ("salt", "1", "pinch", Some("0.02")),
             ],
             &[
                 "Beat eggs with a pinch of salt.",
@@ -52,11 +53,12 @@ pub async fn seed_if_empty(pool: &SqlitePool) -> Result<()> {
             0,
             Difficulty::Easy,
             4,
+            Some("8.00"),
             &[
-                ("bread", "2", "slices"),
-                ("turkey", "4", "oz"),
-                ("mustard", "1", "tbsp"),
-                ("lettuce", "2", "leaves"),
+                ("bread", "2", "slices", Some("0.60")),
+                ("turkey", "4", "oz", Some("2.50")),
+                ("mustard", "1", "tbsp", Some("0.15")),
+                ("lettuce", "2", "leaves", Some("0.20")),
             ],
             &[
                 "Spread mustard on one slice of bread.",
@@ -72,11 +74,12 @@ pub async fn seed_if_empty(pool: &SqlitePool) -> Result<()> {
             15,
             Difficulty::Easy,
             5,
+            Some("12.00"),
             &[
-                ("pasta", "200", "g"),
-                ("olive oil", "2", "tbsp"),
-                ("garlic", "3", "cloves"),
-                ("parmesan", "0.25", "cup"),
+                ("pasta", "200", "g", Some("1.20")),
+                ("olive oil", "2", "tbsp", Some("0.40")),
+                ("garlic", "3", "cloves", Some("0.15")),
+                ("parmesan", "0.25", "cup", Some("0.75")),
             ],
             &[
                 "Boil salted water and cook pasta until al dente. Reserve 1/2 cup pasta water.",
@@ -93,9 +96,10 @@ pub async fn seed_if_empty(pool: &SqlitePool) -> Result<()> {
             0,
             Difficulty::Easy,
             4,
+            Some("4.00"),
             &[
-                ("apple", "1", "medium"),
-                ("peanut butter", "2", "tbsp"),
+                ("apple", "1", "medium", Some("0.80")),
+                ("peanut butter", "2", "tbsp", Some("0.35")),
             ],
             &[
                 "Core the apple and slice into wedges.",
@@ -104,7 +108,7 @@ pub async fn seed_if_empty(pool: &SqlitePool) -> Result<()> {
         ),
     ];
 
-    for (name, description, meal_type, servings, prep, cook, difficulty, rating, ingredients, steps) in
+    for (name, description, meal_type, servings, prep, cook, difficulty, rating, menu_price, ingredients, steps) in
         samples
     {
         let recipe = Recipe {
@@ -122,11 +126,12 @@ pub async fn seed_if_empty(pool: &SqlitePool) -> Result<()> {
             user_id: DEFAULT_USER_ID,
             rating: Some(rating),
             difficulty: Some(difficulty),
+            menu_price: menu_price.and_then(|p| p.parse().ok()),
         };
 
         let recipe_id = recipes.create_recipe(&recipe).await?;
 
-        for (ingredient, qty, unit) in ingredients.iter() {
+        for (ingredient, qty, unit, line_cost) in ingredients.iter() {
             let display = format!("{} {} {}", qty, unit, ingredient);
             recipes
                 .add_ingredient(&RecipeIngredient {
@@ -138,6 +143,8 @@ pub async fn seed_if_empty(pool: &SqlitePool) -> Result<()> {
                     note: None,
                     display,
                     category: None,
+                    cost_per_unit: None,
+                    line_cost: line_cost.and_then(|c| c.parse().ok()),
                 })
                 .await?;
         }

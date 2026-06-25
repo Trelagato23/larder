@@ -65,7 +65,7 @@
         .edit-section h4 { color: #4ecca3; margin-bottom: 0.5rem; font-size: 0.95rem; }
         .edit-row { display: flex; gap: 0.35rem; margin-bottom: 0.35rem; align-items: center; }
         .edit-row input, .edit-row textarea { flex: 1; min-width: 0; }
-        .edit-row .timer-in { max-width: 4rem; }
+        .edit-row .cost-in { max-width: 5rem; }
         .modal-actions { display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: flex-end; }
         .meal-day { background: #0f3460; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem; }
         .meal-day h4 { color: #4ecca3; margin-bottom: 0.5rem; }
@@ -165,6 +165,7 @@ let mealWeekStart = mondayOf(new Date());
 let allRecipes = [];
 let currentRecipe = null;
 let displayServings = 1;
+let displayBatches = 1;
 let cookState = null;
 let cookTimer = null;
 
@@ -176,13 +177,45 @@ function toast(msg, isError) {
     setTimeout(() => el.remove(), 3500);
 }
 
-function scaleDisplay(display, original, target) {
-    if (!display || original === target || !original) return display;
+function scaleFactor(recipe) {
+    if (!recipe || !recipe.servings) return 1;
+    return (displayServings / recipe.servings) * displayBatches;
+}
+
+function scaleDisplay(display, recipe) {
+    const factor = scaleFactor(recipe);
+    if (!display || factor === 1) return display;
     const m = display.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
     if (!m) return display;
-    const scaled = parseFloat(m[1]) * target / original;
+    const scaled = parseFloat(m[1]) * factor;
     const formatted = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(2).replace(/\.?0+$/, '');
     return formatted + (m[2] ? ' ' + m[2] : '');
+}
+
+function parseMoney(s) {
+    if (s == null || s === '') return null;
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : null;
+}
+
+function ingredientLineCost(i, factor) {
+    const line = parseMoney(i.line_cost);
+    if (line != null) return line * factor;
+    const cpu = parseMoney(i.cost_per_unit);
+    const qty = parseMoney(i.quantity);
+    if (cpu != null && qty != null) return qty * cpu * factor;
+    return null;
+}
+
+function recipeTotalCost(ingredients, factor) {
+    return ingredients.reduce((sum, i) => {
+        const c = ingredientLineCost(i, factor);
+        return sum + (c || 0);
+    }, 0);
+}
+
+function formatMoney(n) {
+    return '$' + Number(n).toFixed(2);
 }
 
 async function loadAllRecipes() {
@@ -298,6 +331,7 @@ async function showRecipe(id) {
         const tags = await tagsRes.json();
         currentRecipe = { recipe, ingredients, steps, tags };
         displayServings = recipe.servings;
+        displayBatches = 1;
         renderRecipeDetail();
     } catch (e) {
         document.getElementById('recipe-detail').innerHTML = '<div class="empty"><p>Error loading recipe</p></div>';
@@ -323,7 +357,11 @@ function renderRecipeDetail() {
         '<div class="scale-controls"><span>Servings:</span>' +
         '<button class="btn btn-small" onclick="changeServings(-1)">−</button>' +
         '<strong id="serving-count">' + displayServings + '</strong>' +
-        '<button class="btn btn-small" onclick="changeServings(1)">+</button></div>' +
+        '<button class="btn btn-small" onclick="changeServings(1)">+</button>' +
+        '<span style="margin-left:1rem">Batches:</span>' +
+        '<button class="btn btn-small" onclick="changeBatches(-1)">−</button>' +
+        '<strong id="batch-count">' + displayBatches + '</strong>' +
+        '<button class="btn btn-small" onclick="changeBatches(1)">+</button></div>' +
         '<div class="detail-actions">' +
         '<button class="btn" onclick="startCooking()">Cook</button>' +
         '<button class="btn" onclick="printPrepSheet()">Print prep sheet</button>' +
@@ -340,9 +378,24 @@ function renderRecipeDetail() {
     html += '<div class="search" style="margin:0.5rem 0"><input type="text" id="new-tag" placeholder="Add tag..."><button class="btn" onclick="addTag(\'' + id + '\')">Add tag</button></div>';
 
     if (ingredients.length > 0) {
+        const factor = scaleFactor(recipe);
         html += '<div class="ingredients"><h3>Ingredients</h3><ul id="ingredient-list">' +
-            ingredients.map(i => '<li>' + escapeHtml(scaleDisplay(i.display, recipe.servings, displayServings)) + '</li>').join('') +
-            '</ul></div>';
+            ingredients.map(i => {
+                const cost = ingredientLineCost(i, factor);
+                const costHtml = cost != null ? ' <span style="color:#4ecca3">(' + formatMoney(cost) + ')</span>' : '';
+                return '<li>' + escapeHtml(scaleDisplay(i.display, recipe)) + costHtml + '</li>';
+            }).join('') +
+            '</ul>';
+        const total = recipeTotalCost(ingredients, factor);
+        if (total > 0) {
+            html += '<p style="margin-top:0.5rem;color:#4ecca3"><strong>Est. food cost: ' + formatMoney(total) + '</strong>';
+            const menu = parseMoney(recipe.menu_price);
+            if (menu > 0) {
+                html += ' &nbsp;|&nbsp; ' + ((total / menu) * 100).toFixed(1) + '% of menu ' + formatMoney(menu);
+            }
+            html += '</p>';
+        }
+        html += '</div>';
     }
 
     if (steps.length > 0) {
@@ -368,6 +421,12 @@ function changeServings(delta) {
     renderRecipeDetail();
 }
 
+function changeBatches(delta) {
+    if (!currentRecipe) return;
+    displayBatches = Math.max(1, displayBatches + delta);
+    renderRecipeDetail();
+}
+
 function filterByTagName(name) {
     document.getElementById('tag-filter').value = name;
     showView('recipes');
@@ -377,13 +436,13 @@ function filterByTagName(name) {
 function openEditModal() {
     if (!currentRecipe) return;
     const r = currentRecipe.recipe;
-    const ings = currentRecipe.ingredients.map(i => i.display);
     const steps = currentRecipe.steps;
-    let ingRows = ings.map((line, i) =>
-        '<div class="edit-row"><input class="edit-ing" value="' + escapeHtml(line) + '">' +
+    let ingRows = currentRecipe.ingredients.map(i =>
+        '<div class="edit-row"><input class="edit-ing" value="' + escapeHtml(i.display) + '">' +
+        '<input class="edit-ing-cost cost-in" type="number" min="0" step="0.01" placeholder="$" title="Line cost at recipe yield" value="' + (i.line_cost || '') + '">' +
         '<button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">×</button></div>'
     ).join('');
-    if (!ingRows) ingRows = '<div class="edit-row"><input class="edit-ing" placeholder="e.g. 2 cups flour"><button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">×</button></div>';
+    if (!ingRows) ingRows = '<div class="edit-row"><input class="edit-ing" placeholder="e.g. 2 cups flour"><input class="edit-ing-cost cost-in" type="number" min="0" step="0.01" placeholder="$"><button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">×</button></div>';
     let stepRows = steps.map(s =>
         '<div class="edit-row"><textarea class="edit-step" rows="2" placeholder="Instruction">' + escapeHtml(s.instruction) + '</textarea>' +
         '<input class="edit-step-timer timer-in" type="number" min="0" placeholder="min" value="' + (s.timer_seconds ? Math.floor(s.timer_seconds / 60) : '') + '">' +
@@ -400,6 +459,7 @@ function openEditModal() {
         '<label>Prep (min)<input type="number" id="edit-prep" min="0" value="' + (r.prep_time_minutes || '') + '"></label>' +
         '<label>Cook (min)<input type="number" id="edit-cook" min="0" value="' + (r.cook_time_minutes || '') + '"></label>' +
         '<label>Rating (1-5)<input type="number" id="edit-rating" min="1" max="5" value="' + (r.rating || '') + '"></label>' +
+        '<label>Menu price ($)<input type="number" id="edit-menu-price" min="0" step="0.01" value="' + (r.menu_price || '') + '"></label>' +
         '<label>Difficulty<select id="edit-diff"><option value="">—</option>' +
         ['easy','medium','hard'].map(d => '<option value="' + d + '"' + (r.difficulty === d ? ' selected' : '') + '>' + d + '</option>').join('') +
         '</select></label></div>' +
@@ -415,6 +475,7 @@ function addEditIngredient() {
     const row = document.createElement('div');
     row.className = 'edit-row';
     row.innerHTML = '<input class="edit-ing" placeholder="e.g. 1 tbsp olive oil">' +
+        '<input class="edit-ing-cost cost-in" type="number" min="0" step="0.01" placeholder="$">' +
         '<button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">×</button>';
     document.getElementById('edit-ingredients-list').appendChild(row);
 }
@@ -431,7 +492,7 @@ function addEditStep() {
 function printPrepSheet() {
     if (!currentRecipe) return;
     const id = currentRecipe.recipe.id;
-    const url = API + '/recipes/' + id + '/prep?servings=' + displayServings + '&auto=1';
+    const url = API + '/recipes/' + id + '/prep?servings=' + displayServings + '&batches=' + displayBatches + '&auto=1';
     window.open(url, '_blank', 'noopener');
 }
 
@@ -440,8 +501,15 @@ function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
 async function saveRecipeEdit() {
     if (!currentRecipe) return;
     const id = currentRecipe.recipe.id;
-    const ingredients = Array.from(document.querySelectorAll('.edit-ing'))
-        .map(el => el.value.trim()).filter(Boolean).map(display => ({ display }));
+    const ingredients = Array.from(document.querySelectorAll('#edit-ingredients-list .edit-row')).map(row => {
+        const display = row.querySelector('.edit-ing').value.trim();
+        if (!display) return null;
+        const costVal = row.querySelector('.edit-ing-cost').value.trim();
+        return {
+            display,
+            line_cost: costVal ? costVal : null,
+        };
+    }).filter(Boolean);
     const steps = Array.from(document.querySelectorAll('#edit-steps-list .edit-row')).map(row => {
         const instruction = row.querySelector('.edit-step').value.trim();
         const timerMin = parseInt(row.querySelector('.edit-step-timer').value, 10);
@@ -457,6 +525,7 @@ async function saveRecipeEdit() {
         prep_time_minutes: parseInt(document.getElementById('edit-prep').value, 10) || null,
         cook_time_minutes: parseInt(document.getElementById('edit-cook').value, 10) || null,
         rating: parseInt(document.getElementById('edit-rating').value, 10) || null,
+        menu_price: document.getElementById('edit-menu-price').value.trim() || null,
         difficulty: document.getElementById('edit-diff').value || null,
         ingredients,
         steps,

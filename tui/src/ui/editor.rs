@@ -1,4 +1,5 @@
 use larder_core::models::{Recipe, RecipeIngredient, RecipeStep};
+use rust_decimal::Decimal;
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
@@ -15,6 +16,13 @@ enum EditField {
     PrepTime,
     CookTime,
     Rating,
+    MenuPrice,
+}
+
+#[derive(Debug, Clone)]
+struct IngredientDraft {
+    display: String,
+    line_cost: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,7 +48,8 @@ pub struct EditorState {
     prep_time: String,
     cook_time: String,
     rating: String,
-    ingredients: Vec<String>,
+    menu_price: String,
+    ingredients: Vec<IngredientDraft>,
     steps: Vec<StepDraft>,
     list_state: ListState,
     editing_line: bool,
@@ -54,7 +63,16 @@ impl EditorState {
         ingredients: Vec<RecipeIngredient>,
         steps: Vec<RecipeStep>,
     ) -> Self {
-        let ingredient_lines: Vec<String> = ingredients.into_iter().map(|i| i.display).collect();
+        let ingredient_lines: Vec<IngredientDraft> = ingredients
+            .into_iter()
+            .map(|i| IngredientDraft {
+                display: i.display,
+                line_cost: i
+                    .line_cost
+                    .map(|c| c.to_string())
+                    .unwrap_or_default(),
+            })
+            .collect();
         let step_lines: Vec<StepDraft> = steps
             .into_iter()
             .map(|s| StepDraft {
@@ -79,6 +97,10 @@ impl EditorState {
                 .map(|v| v.to_string())
                 .unwrap_or_default(),
             rating: recipe.rating.map(|v| v.to_string()).unwrap_or_default(),
+            menu_price: recipe
+                .menu_price
+                .map(|p| p.to_string())
+                .unwrap_or_default(),
             recipe,
             panel: EditorPanel::Meta,
             field: EditField::Name,
@@ -166,6 +188,17 @@ impl EditorState {
             Some(value)
         };
 
+        let menu_price = if self.menu_price.trim().is_empty() {
+            None
+        } else {
+            Some(
+                self.menu_price
+                    .trim()
+                    .parse::<Decimal>()
+                    .map_err(|_| "Menu price must be a number".to_string())?,
+            )
+        };
+
         Ok(Recipe {
             id: self.recipe.id,
             name: self.name.trim().to_string(),
@@ -185,16 +218,27 @@ impl EditorState {
             user_id: self.recipe.user_id,
             rating,
             difficulty: self.recipe.difficulty,
+            menu_price,
         })
     }
 
-    pub fn build_ingredients(&self, recipe_id: uuid::Uuid) -> Vec<RecipeIngredient> {
+    pub fn build_ingredients(&self, recipe_id: uuid::Uuid) -> Result<Vec<RecipeIngredient>, String> {
         self.ingredients
             .iter()
-            .filter(|l| !l.trim().is_empty())
+            .filter(|l| !l.display.trim().is_empty())
             .map(|line| {
-                let display = line.trim().to_string();
-                RecipeIngredient {
+                let display = line.display.trim().to_string();
+                let line_cost = if line.line_cost.trim().is_empty() {
+                    None
+                } else {
+                    Some(
+                        line.line_cost
+                            .trim()
+                            .parse::<Decimal>()
+                            .map_err(|_| "Ingredient cost must be a number".to_string())?,
+                    )
+                };
+                Ok(RecipeIngredient {
                     id: uuid::Uuid::new_v4(),
                     recipe_id,
                     ingredient: display.clone(),
@@ -203,7 +247,9 @@ impl EditorState {
                     note: None,
                     display,
                     category: None,
-                }
+                    cost_per_unit: None,
+                    line_cost,
+                })
             })
             .collect()
     }
@@ -247,18 +293,20 @@ impl EditorState {
             EditField::Servings => EditField::PrepTime,
             EditField::PrepTime => EditField::CookTime,
             EditField::CookTime => EditField::Rating,
-            EditField::Rating => EditField::Name,
+            EditField::Rating => EditField::MenuPrice,
+            EditField::MenuPrice => EditField::Name,
         };
     }
 
     pub fn prev_field(&mut self) {
         self.field = match self.field {
-            EditField::Name => EditField::Rating,
+            EditField::Name => EditField::MenuPrice,
             EditField::Description => EditField::Name,
             EditField::Servings => EditField::Description,
             EditField::PrepTime => EditField::Servings,
             EditField::CookTime => EditField::PrepTime,
             EditField::Rating => EditField::CookTime,
+            EditField::MenuPrice => EditField::Rating,
         };
     }
 
@@ -298,7 +346,7 @@ impl EditorState {
             EditorPanel::Ingredients => self
                 .ingredients
                 .get(self.list_state.selected().unwrap_or(0))
-                .cloned()
+                .map(|i| i.display.clone())
                 .unwrap_or_default(),
             EditorPanel::Steps => self
                 .steps
@@ -317,13 +365,20 @@ impl EditorState {
             self.commit_timer();
             return;
         }
+        if self.status == "Line cost ($):" {
+            self.commit_ingredient_cost();
+            return;
+        }
         let idx = self.list_state.selected().unwrap_or(0);
         match self.panel {
             EditorPanel::Ingredients => {
                 if idx >= self.ingredients.len() {
-                    self.ingredients.push(self.line_buffer.trim().to_string());
+                    self.ingredients.push(IngredientDraft {
+                        display: self.line_buffer.trim().to_string(),
+                        line_cost: String::new(),
+                    });
                 } else {
-                    self.ingredients[idx] = self.line_buffer.trim().to_string();
+                    self.ingredients[idx].display = self.line_buffer.trim().to_string();
                 }
             }
             EditorPanel::Steps => {
@@ -351,7 +406,10 @@ impl EditorState {
     pub fn add_line(&mut self) {
         match self.panel {
             EditorPanel::Ingredients => {
-                self.ingredients.push(String::new());
+                self.ingredients.push(IngredientDraft {
+                    display: String::new(),
+                    line_cost: String::new(),
+                });
                 self.list_state.select(Some(self.ingredients.len() - 1));
             }
             EditorPanel::Steps => {
@@ -380,6 +438,28 @@ impl EditorState {
         if self.list_len() > 0 {
             self.list_state.select(Some(idx.min(self.list_len() - 1)));
         }
+    }
+
+    pub fn edit_ingredient_cost(&mut self) {
+        if self.panel != EditorPanel::Ingredients {
+            return;
+        }
+        let idx = self.list_state.selected().unwrap_or(0);
+        if let Some(ing) = self.ingredients.get(idx) {
+            self.editing_line = true;
+            self.line_buffer = ing.line_cost.clone();
+            self.status = "Line cost ($):".to_string();
+        }
+    }
+
+    pub fn commit_ingredient_cost(&mut self) {
+        let idx = self.list_state.selected().unwrap_or(0);
+        if let Some(ing) = self.ingredients.get_mut(idx) {
+            ing.line_cost = self.line_buffer.trim().to_string();
+        }
+        self.editing_line = false;
+        self.line_buffer.clear();
+        self.status.clear();
     }
 
     pub fn edit_step_timer(&mut self) {
@@ -419,6 +499,7 @@ impl EditorState {
             EditField::PrepTime => self.prep_time.push(c),
             EditField::CookTime => self.cook_time.push(c),
             EditField::Rating => self.rating.push(c),
+            EditField::MenuPrice => self.menu_price.push(c),
         }
     }
 
@@ -454,6 +535,9 @@ impl EditorState {
             }
             EditField::Rating => {
                 self.rating.pop();
+            }
+            EditField::MenuPrice => {
+                self.menu_price.pop();
             }
         }
     }
@@ -493,14 +577,17 @@ pub fn render(frame: &mut Frame, area: Rect, state: &mut EditorState, status: &s
 
     let mut footer = match state.panel {
         EditorPanel::Meta => "1/2/3: panel | Tab: field | Enter: save recipe | Esc: cancel",
-        EditorPanel::Ingredients => "j/k: select | Enter: edit | a: add | d: delete | 1/2/3: panel",
+        EditorPanel::Ingredients => "j/k: select | Enter: edit | c: cost | a: add | d: delete | 1/2/3: panel",
         EditorPanel::Steps => "j/k: select | Enter: edit | t: timer | a: add | d: delete | 1/2/3: panel",
     };
     if state.editing_line {
         footer = "Enter: save line | Esc: cancel edit";
     }
     let mut text = footer.to_string();
-    if !state.status.is_empty() && state.status != "Timer (minutes):" {
+    if !state.status.is_empty()
+        && state.status != "Timer (minutes):"
+        && state.status != "Line cost ($):"
+    {
         text = format!("{} | {}", state.status, text);
     } else if !status.is_empty() {
         text = format!("{} | {}", status, text);
@@ -588,6 +675,21 @@ fn render_meta(frame: &mut Frame, area: Rect, state: &EditorState) {
                 field_style(EditField::Rating),
             ),
         ]),
+        Line::from(vec![
+            Span::styled("Menu price ($): ", field_style(EditField::MenuPrice)),
+            Span::styled(
+                format!(
+                    "{}{}",
+                    state.menu_price,
+                    if state.field == EditField::MenuPrice {
+                        cursor
+                    } else {
+                        ""
+                    }
+                ),
+                field_style(EditField::MenuPrice),
+            ),
+        ]),
     ];
 
     let form = Paragraph::new(lines).block(Block::default().borders(Borders::ALL));
@@ -596,8 +698,12 @@ fn render_meta(frame: &mut Frame, area: Rect, state: &EditorState) {
 
 fn render_ingredient_list(frame: &mut Frame, area: Rect, state: &mut EditorState) {
     if state.editing_line {
-        let prompt = Paragraph::new(format!("Ingredient: {}▌", state.line_buffer))
-            .block(Block::default().borders(Borders::ALL).title("Edit line"));
+        let title = if state.status == "Line cost ($):" {
+            format!("Line cost ($): {}▌", state.line_buffer)
+        } else {
+            format!("Ingredient: {}▌", state.line_buffer)
+        };
+        let prompt = Paragraph::new(title).block(Block::default().borders(Borders::ALL).title("Edit line"));
         frame.render_widget(prompt, area);
         return;
     }
@@ -608,7 +714,14 @@ fn render_ingredient_list(frame: &mut Frame, area: Rect, state: &mut EditorState
         state
             .ingredients
             .iter()
-            .map(|line| ListItem::new(format!("  {}", line)))
+            .map(|line| {
+                let cost = if line.line_cost.is_empty() {
+                    String::new()
+                } else {
+                    format!("  (${})", line.line_cost)
+                };
+                ListItem::new(format!("  {}{}", line.display, cost))
+            })
             .collect()
     };
 
