@@ -12,6 +12,7 @@ pub mod export;
 pub mod health;
 pub mod import;
 pub mod meal_plans;
+pub mod prep_sheet;
 pub mod recipes;
 pub mod shopping;
 pub mod tags;
@@ -33,6 +34,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         )
         .route("/api/recipes/{id}/ingredients", get(recipes::ingredients))
         .route("/api/recipes/{id}/steps", get(recipes::steps))
+        .route("/api/recipes/{id}/prep", get(prep_sheet::handler))
         .route("/api/export", get(export::handler))
         .route("/api/stats", get(export::count))
         .route("/api/import", post(import::handler))

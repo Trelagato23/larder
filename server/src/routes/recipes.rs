@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
-use larder_core::models::{Difficulty, Recipe};
+use larder_core::models::{Difficulty, Recipe, RecipeIngredient, RecipeStep};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -20,6 +20,25 @@ pub struct CreateRecipeRequest {
     pub source_url: Option<String>,
     pub rating: Option<u8>,
     pub difficulty: Option<String>,
+    #[serde(default)]
+    pub ingredients: Option<Vec<IngredientInput>>,
+    #[serde(default)]
+    pub steps: Option<Vec<StepInput>>,
+}
+
+#[derive(Deserialize)]
+pub struct IngredientInput {
+    pub display: String,
+    pub ingredient: Option<String>,
+    pub quantity: Option<String>,
+    pub unit: Option<String>,
+    pub category: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct StepInput {
+    pub instruction: String,
+    pub timer_seconds: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -65,6 +84,72 @@ pub struct ListQuery {
     pub tag: Option<String>,
 }
 
+fn parse_difficulty(d: Option<&str>) -> Option<Difficulty> {
+    d.and_then(|d| match d {
+        "easy" => Some(Difficulty::Easy),
+        "medium" => Some(Difficulty::Medium),
+        "hard" => Some(Difficulty::Hard),
+        _ => None,
+    })
+}
+
+async fn save_ingredients_steps(
+    state: &AppState,
+    recipe_id: Uuid,
+    ingredients: Option<Vec<IngredientInput>>,
+    steps: Option<Vec<StepInput>>,
+) -> Result<(), (StatusCode, String)> {
+    if let Some(ings) = ingredients {
+        let parsed: Vec<RecipeIngredient> = ings
+            .into_iter()
+            .filter(|i| !i.display.trim().is_empty())
+            .map(|i| {
+                let display = i.display.trim().to_string();
+                RecipeIngredient {
+                    id: Uuid::new_v4(),
+                    recipe_id,
+                    ingredient: i
+                        .ingredient
+                        .filter(|s| !s.trim().is_empty())
+                        .unwrap_or_else(|| display.clone()),
+                    quantity: i.quantity.and_then(|q| q.parse().ok()),
+                    unit: i.unit,
+                    note: None,
+                    display,
+                    category: i.category,
+                }
+            })
+            .collect();
+        state
+            .recipes
+            .replace_ingredients(recipe_id, &parsed)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    }
+
+    if let Some(stps) = steps {
+        let parsed: Vec<RecipeStep> = stps
+            .into_iter()
+            .filter(|s| !s.instruction.trim().is_empty())
+            .enumerate()
+            .map(|(idx, s)| RecipeStep {
+                id: Uuid::new_v4(),
+                recipe_id,
+                position: (idx + 1) as u32,
+                instruction: s.instruction.trim().to_string(),
+                timer_seconds: s.timer_seconds,
+            })
+            .collect();
+        state
+            .recipes
+            .replace_steps(recipe_id, &parsed)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    }
+
+    Ok(())
+}
+
 pub async fn list(
     State(state): State<Arc<AppState>>,
     Query(params): Query<ListQuery>,
@@ -90,12 +175,7 @@ pub async fn create(
     State(state): State<Arc<AppState>>,
     Json(body): Json<CreateRecipeRequest>,
 ) -> (axum::http::StatusCode, Json<RecipeResponse>) {
-    let difficulty = body.difficulty.as_deref().and_then(|d| match d {
-        "easy" => Some(Difficulty::Easy),
-        "medium" => Some(Difficulty::Medium),
-        "hard" => Some(Difficulty::Hard),
-        _ => None,
-    });
+    let difficulty = parse_difficulty(body.difficulty.as_deref());
 
     let recipe = Recipe {
         id: Uuid::new_v4(),
@@ -121,6 +201,8 @@ pub async fn create(
         .unwrap_or_default();
     let mut created = recipe;
     created.id = id;
+
+    let _ = save_ingredients_steps(&state, id, body.ingredients, body.steps).await;
 
     (
         axum::http::StatusCode::CREATED,
@@ -150,12 +232,15 @@ pub async fn update(
     Path(id): Path<Uuid>,
     Json(body): Json<CreateRecipeRequest>,
 ) -> Result<&'static str, (axum::http::StatusCode, String)> {
-    let difficulty = body.difficulty.as_deref().and_then(|d| match d {
-        "easy" => Some(Difficulty::Easy),
-        "medium" => Some(Difficulty::Medium),
-        "hard" => Some(Difficulty::Hard),
-        _ => None,
-    });
+    let difficulty = parse_difficulty(body.difficulty.as_deref());
+    let prep = body.prep_time_minutes;
+    let cook = body.cook_time_minutes;
+    let total_time_minutes = match (prep, cook) {
+        (Some(p), Some(c)) => Some(p + c),
+        (Some(p), None) => Some(p),
+        (None, Some(c)) => Some(c),
+        (None, None) => None,
+    };
 
     let recipe = Recipe {
         id,
@@ -163,9 +248,9 @@ pub async fn update(
         description: body.description,
         image_url: None,
         servings: body.servings.unwrap_or(1),
-        prep_time_minutes: body.prep_time_minutes,
-        cook_time_minutes: body.cook_time_minutes,
-        total_time_minutes: None,
+        prep_time_minutes: prep,
+        cook_time_minutes: cook,
+        total_time_minutes,
         source_url: body.source_url,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
@@ -179,6 +264,8 @@ pub async fn update(
         .update_recipe(&recipe)
         .await
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    save_ingredients_steps(&state, id, body.ingredients, body.steps).await?;
 
     Ok("updated")
 }

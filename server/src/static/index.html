@@ -57,10 +57,15 @@
         .toast.error { border-color: #e94560; }
         @keyframes fadein { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
         .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 1rem; }
-        .modal { background: #16213e; border-radius: 8px; padding: 1.25rem; width: 100%; max-width: 480px; border: 1px solid #0f3460; }
+        .modal { background: #16213e; border-radius: 8px; padding: 1.25rem; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; border: 1px solid #0f3460; }
         .modal h3 { color: #4ecca3; margin-bottom: 1rem; }
         .form-grid { display: grid; gap: 0.75rem; }
         .form-grid label { display: grid; gap: 0.25rem; font-size: 0.85rem; color: #aaa; }
+        .edit-section { margin-top: 1rem; }
+        .edit-section h4 { color: #4ecca3; margin-bottom: 0.5rem; font-size: 0.95rem; }
+        .edit-row { display: flex; gap: 0.35rem; margin-bottom: 0.35rem; align-items: center; }
+        .edit-row input, .edit-row textarea { flex: 1; min-width: 0; }
+        .edit-row .timer-in { max-width: 4rem; }
         .modal-actions { display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: flex-end; }
         .meal-day { background: #0f3460; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem; }
         .meal-day h4 { color: #4ecca3; margin-bottom: 0.5rem; }
@@ -321,6 +326,7 @@ function renderRecipeDetail() {
         '<button class="btn btn-small" onclick="changeServings(1)">+</button></div>' +
         '<div class="detail-actions">' +
         '<button class="btn" onclick="startCooking()">Cook</button>' +
+        '<button class="btn" onclick="printPrepSheet()">Print prep sheet</button>' +
         '<button class="btn" onclick="openEditModal()">Edit</button>' +
         '<button class="btn btn-danger" onclick="confirmDeleteRecipe()">Delete</button>' +
         '</div>';
@@ -371,11 +377,25 @@ function filterByTagName(name) {
 function openEditModal() {
     if (!currentRecipe) return;
     const r = currentRecipe.recipe;
+    const ings = currentRecipe.ingredients.map(i => i.display);
+    const steps = currentRecipe.steps;
+    let ingRows = ings.map((line, i) =>
+        '<div class="edit-row"><input class="edit-ing" value="' + escapeHtml(line) + '">' +
+        '<button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">×</button></div>'
+    ).join('');
+    if (!ingRows) ingRows = '<div class="edit-row"><input class="edit-ing" placeholder="e.g. 2 cups flour"><button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">×</button></div>';
+    let stepRows = steps.map(s =>
+        '<div class="edit-row"><textarea class="edit-step" rows="2" placeholder="Instruction">' + escapeHtml(s.instruction) + '</textarea>' +
+        '<input class="edit-step-timer timer-in" type="number" min="0" placeholder="min" value="' + (s.timer_seconds ? Math.floor(s.timer_seconds / 60) : '') + '">' +
+        '<button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">×</button></div>'
+    ).join('');
+    if (!stepRows) stepRows = '<div class="edit-row"><textarea class="edit-step" rows="2" placeholder="Instruction"></textarea><input class="edit-step-timer timer-in" type="number" min="0" placeholder="min"><button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">×</button></div>';
+
     document.getElementById('modal-root').innerHTML =
         '<div class="modal-backdrop" onclick="if(event.target===this)closeModal()">' +
         '<div class="modal"><h3>Edit recipe</h3><div class="form-grid">' +
         '<label>Name<input id="edit-name" value="' + escapeHtml(r.name) + '"></label>' +
-        '<label>Description<textarea id="edit-desc" rows="3">' + escapeHtml(r.description || '') + '</textarea></label>' +
+        '<label>Description<textarea id="edit-desc" rows="2">' + escapeHtml(r.description || '') + '</textarea></label>' +
         '<label>Servings<input type="number" id="edit-servings" min="1" value="' + r.servings + '"></label>' +
         '<label>Prep (min)<input type="number" id="edit-prep" min="0" value="' + (r.prep_time_minutes || '') + '"></label>' +
         '<label>Cook (min)<input type="number" id="edit-cook" min="0" value="' + (r.cook_time_minutes || '') + '"></label>' +
@@ -383,8 +403,36 @@ function openEditModal() {
         '<label>Difficulty<select id="edit-diff"><option value="">—</option>' +
         ['easy','medium','hard'].map(d => '<option value="' + d + '"' + (r.difficulty === d ? ' selected' : '') + '>' + d + '</option>').join('') +
         '</select></label></div>' +
+        '<div class="edit-section"><h4>Ingredients</h4><div id="edit-ingredients-list">' + ingRows + '</div>' +
+        '<button type="button" class="btn btn-small" onclick="addEditIngredient()">+ Ingredient</button></div>' +
+        '<div class="edit-section"><h4>Steps</h4><div id="edit-steps-list">' + stepRows + '</div>' +
+        '<button type="button" class="btn btn-small" onclick="addEditStep()">+ Step</button></div>' +
         '<div class="modal-actions"><button class="btn" onclick="closeModal()">Cancel</button>' +
         '<button class="btn" onclick="saveRecipeEdit()">Save</button></div></div></div>';
+}
+
+function addEditIngredient() {
+    const row = document.createElement('div');
+    row.className = 'edit-row';
+    row.innerHTML = '<input class="edit-ing" placeholder="e.g. 1 tbsp olive oil">' +
+        '<button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">×</button>';
+    document.getElementById('edit-ingredients-list').appendChild(row);
+}
+
+function addEditStep() {
+    const row = document.createElement('div');
+    row.className = 'edit-row';
+    row.innerHTML = '<textarea class="edit-step" rows="2" placeholder="Instruction"></textarea>' +
+        '<input class="edit-step-timer timer-in" type="number" min="0" placeholder="min">' +
+        '<button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">×</button>';
+    document.getElementById('edit-steps-list').appendChild(row);
+}
+
+function printPrepSheet() {
+    if (!currentRecipe) return;
+    const id = currentRecipe.recipe.id;
+    const url = API + '/recipes/' + id + '/prep?servings=' + displayServings + '&auto=1';
+    window.open(url, '_blank', 'noopener');
 }
 
 function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
@@ -392,6 +440,16 @@ function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
 async function saveRecipeEdit() {
     if (!currentRecipe) return;
     const id = currentRecipe.recipe.id;
+    const ingredients = Array.from(document.querySelectorAll('.edit-ing'))
+        .map(el => el.value.trim()).filter(Boolean).map(display => ({ display }));
+    const steps = Array.from(document.querySelectorAll('#edit-steps-list .edit-row')).map(row => {
+        const instruction = row.querySelector('.edit-step').value.trim();
+        const timerMin = parseInt(row.querySelector('.edit-step-timer').value, 10);
+        return {
+            instruction,
+            timer_seconds: timerMin > 0 ? timerMin * 60 : null,
+        };
+    }).filter(s => s.instruction);
     const body = {
         name: document.getElementById('edit-name').value.trim(),
         description: document.getElementById('edit-desc').value.trim() || null,
@@ -400,6 +458,8 @@ async function saveRecipeEdit() {
         cook_time_minutes: parseInt(document.getElementById('edit-cook').value, 10) || null,
         rating: parseInt(document.getElementById('edit-rating').value, 10) || null,
         difficulty: document.getElementById('edit-diff').value || null,
+        ingredients,
+        steps,
     };
     if (!body.name) { toast('Name is required', true); return; }
     const res = await fetch(API + '/recipes/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

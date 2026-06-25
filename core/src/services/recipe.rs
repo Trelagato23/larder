@@ -327,6 +327,26 @@ impl RecipeService {
         Ok(())
     }
 
+    pub async fn replace_ingredients(
+        &self,
+        recipe_id: Uuid,
+        ingredients: &[RecipeIngredient],
+    ) -> Result<()> {
+        self.clear_ingredients(recipe_id).await?;
+        for ing in ingredients {
+            self.add_ingredient(ing).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn replace_steps(&self, recipe_id: Uuid, steps: &[RecipeStep]) -> Result<()> {
+        self.clear_steps(recipe_id).await?;
+        for step in steps {
+            self.add_step(step).await?;
+        }
+        Ok(())
+    }
+
     pub async fn get_tags(&self, recipe_id: Uuid) -> Result<Vec<Tag>> {
         let rows: Vec<(String, String, Option<String>)> = sqlx::query_as(
             "SELECT t.id, t.name, t.color FROM tags t JOIN recipe_tags rt ON t.id = rt.tag_id WHERE rt.recipe_id = ?"

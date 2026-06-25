@@ -19,7 +19,7 @@ mod app_mode;
 mod ui;
 
 use app_mode::AppMode;
-use ui::editor::EditorState;
+use ui::editor::{EditorPanel, EditorState};
 use ui::import::ImportState;
 use ui::meal_plan::MealPlanState;
 use ui::recipe_detail::RecipeDetailState;
@@ -161,15 +161,18 @@ impl App {
             return Ok(());
         };
         let recipe_id = editor.recipe_id();
-        match editor.build_recipe() {
-            Ok(recipe) => {
+        let ingredients = editor.build_ingredients(recipe_id);
+        match (editor.build_recipe(), editor.build_steps(recipe_id)) {
+            (Ok(recipe), Ok(steps)) => {
                 self.recipes.update_recipe(&recipe).await?;
+                self.recipes.replace_ingredients(recipe_id, &ingredients).await?;
+                self.recipes.replace_steps(recipe_id, &steps).await?;
                 self.recipe_editor = None;
                 self.load_recipe_detail(recipe_id).await?;
                 self.mode = AppMode::RecipeDetail;
                 self.status_message = "Recipe saved".to_string();
             }
-            Err(msg) => {
+            (Err(msg), _) | (_, Err(msg)) => {
                 if let Some(editor) = &mut self.recipe_editor {
                     editor.set_status(msg);
                 }
@@ -214,7 +217,12 @@ impl App {
 
     fn in_text_input(&self) -> bool {
         match self.mode {
-            AppMode::Import | AppMode::RecipeEditor => true,
+            AppMode::Import => true,
+            AppMode::RecipeEditor => self
+                .recipe_editor
+                .as_ref()
+                .map(|e| e.in_line_edit() || e.in_meta_field_edit())
+                .unwrap_or(false),
             AppMode::RecipeList => self.recipe_list.search_active(),
             AppMode::ShoppingList => self.shopping_list.adding_item(),
             _ => false,
@@ -318,9 +326,7 @@ impl App {
             }
             AppMode::RecipeEditor => {
                 if let Some(editor) = &mut self.recipe_editor {
-                    for c in text.chars() {
-                        editor.push_char(c);
-                    }
+                    editor.push_str(text);
                 }
             }
             _ => {}
@@ -487,8 +493,13 @@ impl App {
                             }
                         }
                         AppMode::RecipeEditor => {
-                            if let Some(editor) = &self.recipe_editor {
-                                ui::editor::render(frame, content, editor);
+                            if let Some(editor) = &mut self.recipe_editor {
+                                ui::editor::render(
+                                    frame,
+                                    content,
+                                    editor,
+                                    &self.status_message,
+                                );
                             }
                         }
                         AppMode::Import => ui::import::render(frame, content, &self.import),
@@ -645,38 +656,64 @@ impl App {
                 }
                 _ => {}
             },
-            AppMode::RecipeEditor => match key {
-                KeyCode::Esc => {
-                    self.recipe_editor = None;
-                    self.mode = AppMode::RecipeDetail;
-                }
-                KeyCode::Tab | KeyCode::Down => {
-                    if let Some(editor) = &mut self.recipe_editor {
-                        editor.next_field();
+            AppMode::RecipeEditor => {
+                if let Some(editor) = &mut self.recipe_editor {
+                    if editor.in_line_edit() {
+                        match key {
+                            KeyCode::Esc => editor.cancel_edit_line(),
+                            KeyCode::Enter => editor.commit_line(),
+                            KeyCode::Backspace => editor.backspace(),
+                            KeyCode::Char(c) => editor.push_char(c),
+                            _ => {}
+                        }
+                    } else {
+                        match key {
+                            KeyCode::Esc => {
+                                self.recipe_editor = None;
+                                self.mode = AppMode::RecipeDetail;
+                            }
+                            KeyCode::Char('1') => editor.set_panel(EditorPanel::Meta),
+                            KeyCode::Char('2') => editor.set_panel(EditorPanel::Ingredients),
+                            KeyCode::Char('3') => editor.set_panel(EditorPanel::Steps),
+                            KeyCode::Tab | KeyCode::Down => {
+                                if editor.panel() == EditorPanel::Meta {
+                                    editor.next_field();
+                                } else {
+                                    editor.select_next();
+                                }
+                            }
+                            KeyCode::BackTab | KeyCode::Up => {
+                                if editor.panel() == EditorPanel::Meta {
+                                    editor.prev_field();
+                                } else {
+                                    editor.select_previous();
+                                }
+                            }
+                            KeyCode::Enter => {
+                                if editor.panel() == EditorPanel::Meta {
+                                    if let Err(e) = rt.block_on(self.save_editor()) {
+                                        self.status_message = format!("Error: {}", e);
+                                    }
+                                } else {
+                                    editor.start_edit_line();
+                                }
+                            }
+                            KeyCode::Char('a') if editor.panel() != EditorPanel::Meta => {
+                                editor.add_line();
+                            }
+                            KeyCode::Char('d') if editor.panel() != EditorPanel::Meta => {
+                                editor.delete_selected();
+                            }
+                            KeyCode::Char('t') if editor.panel() == EditorPanel::Steps => {
+                                editor.edit_step_timer();
+                            }
+                            KeyCode::Backspace => editor.backspace(),
+                            KeyCode::Char(c) => editor.push_char(c),
+                            _ => {}
+                        }
                     }
                 }
-                KeyCode::BackTab | KeyCode::Up => {
-                    if let Some(editor) = &mut self.recipe_editor {
-                        editor.prev_field();
-                    }
-                }
-                KeyCode::Enter => {
-                    if let Err(e) = rt.block_on(self.save_editor()) {
-                        self.status_message = format!("Error: {}", e);
-                    }
-                }
-                KeyCode::Backspace => {
-                    if let Some(editor) = &mut self.recipe_editor {
-                        editor.backspace();
-                    }
-                }
-                KeyCode::Char(c) => {
-                    if let Some(editor) = &mut self.recipe_editor {
-                        editor.push_char(c);
-                    }
-                }
-                _ => {}
-            },
+            }
             AppMode::RecipeDetail => {
                 let in_cooking = self
                     .recipe_detail
@@ -734,8 +771,11 @@ impl App {
                         }
                         KeyCode::Char('e') => {
                             if let Some(detail) = &self.recipe_detail {
-                                self.recipe_editor =
-                                    Some(EditorState::new(detail.recipe().clone()));
+                                self.recipe_editor = Some(EditorState::new(
+                                    detail.recipe().clone(),
+                                    detail.ingredients().to_vec(),
+                                    detail.steps().to_vec(),
+                                ));
                                 self.mode = AppMode::RecipeEditor;
                             }
                         }

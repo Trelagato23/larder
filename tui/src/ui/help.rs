@@ -81,6 +81,20 @@ pub fn render(frame: &mut Frame, area: Rect) {
         Line::from("  g         Build shopping list from plan"),
         Line::from(""),
         Line::from(vec![Span::styled(
+            "Editor",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(""),
+        Line::from("  1 / 2 / 3   Meta / ingredients / steps panels"),
+        Line::from("  j / k       Select line in list"),
+        Line::from("  Enter       Save recipe (meta) or edit line"),
+        Line::from("  a           Add ingredient or step"),
+        Line::from("  d           Delete selected line"),
+        Line::from("  t           Set step timer (minutes)"),
+        Line::from(""),
+        Line::from(vec![Span::styled(
             "Shopping",
             Style::default()
                 .fg(Color::Cyan)

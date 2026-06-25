@@ -56,6 +56,14 @@ impl RecipeDetailState {
         &self.recipe
     }
 
+    pub fn ingredients(&self) -> &[RecipeIngredient] {
+        &self.ingredients
+    }
+
+    pub fn steps(&self) -> &[RecipeStep] {
+        &self.steps
+    }
+
     pub fn scroll_down(&mut self) {
         self.scroll = self.scroll.saturating_add(1);
     }

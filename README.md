@@ -48,7 +48,7 @@ larder tui
 larder serve
 ```
 
-Web UI supports edit/delete, cooking mode with timers, serving scale, export, and a mobile-friendly meal plan.
+Web UI supports edit/delete, cooking mode with timers, serving scale, export, and a mobile-friendly meal plan. Print prep sheets from any recipe detail page.
 
 Default database: `larder.db` in the working directory. Override with `--database sqlite:/path/to/db` or `DATABASE_URL`.
 
