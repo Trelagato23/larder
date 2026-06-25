@@ -7,11 +7,16 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
 
+enum DisplayRow {
+    Header(String),
+    Item(ShoppingListItem),
+}
+
 pub struct ShoppingListState {
     items: Vec<ShoppingListItem>,
     list_state: ListState,
     show_checked: bool,
-    grouped: Vec<(String, Vec<ShoppingListItem>)>,
+    rows: Vec<DisplayRow>,
     adding_item: bool,
     new_item_text: String,
 }
@@ -22,7 +27,7 @@ impl ShoppingListState {
             items: Vec::new(),
             list_state: ListState::default(),
             show_checked: false,
-            grouped: Vec::new(),
+            rows: Vec::new(),
             adding_item: false,
             new_item_text: String::new(),
         }
@@ -59,64 +64,85 @@ impl ShoppingListState {
         std::mem::take(&mut self.new_item_text)
     }
 
-    pub fn set_items(&mut self, items: Vec<ShoppingListItem>) {
-        let unchecked: Vec<ShoppingListItem> =
-            items.iter().filter(|i| !i.checked).cloned().collect();
-        let checked: Vec<ShoppingListItem> = items.iter().filter(|i| i.checked).cloned().collect();
+    pub fn toggle_show_checked(&mut self) {
+        self.show_checked = !self.show_checked;
+        self.rebuild_rows();
+        self.ensure_selection();
+    }
 
-        let mut grouped: Vec<(String, Vec<ShoppingListItem>)> = Vec::new();
+    pub fn show_checked(&self) -> bool {
+        self.show_checked
+    }
+
+    pub fn set_items(&mut self, items: Vec<ShoppingListItem>) {
+        self.items = items;
+        self.rebuild_rows();
+        let max = self.selectable_count();
+        if max == 0 {
+            self.list_state.select(None);
+        } else if self.list_state.selected().unwrap_or(0) >= max {
+            self.list_state.select(Some(0));
+        }
+    }
+
+    fn rebuild_rows(&mut self) {
+        let mut rows = Vec::new();
         let mut categories = std::collections::BTreeMap::<String, Vec<ShoppingListItem>>::new();
 
-        for item in &unchecked {
+        for item in self.items.iter().filter(|i| !i.checked) {
             let cat = item.category.clone().unwrap_or_else(|| "Other".to_string());
             categories.entry(cat).or_default().push(item.clone());
         }
 
-        for (cat, items) in categories {
-            grouped.push((cat, items));
+        for (cat, cat_items) in categories {
+            rows.push(DisplayRow::Header(cat));
+            for item in cat_items {
+                rows.push(DisplayRow::Item(item));
+            }
         }
 
-        if self.show_checked && !checked.is_empty() {
-            grouped.push(("Checked".to_string(), checked));
+        if self.show_checked {
+            let checked: Vec<ShoppingListItem> =
+                self.items.iter().filter(|i| i.checked).cloned().collect();
+            if !checked.is_empty() {
+                rows.push(DisplayRow::Header("Checked".to_string()));
+                for item in checked {
+                    rows.push(DisplayRow::Item(item));
+                }
+            }
         }
 
-        self.items = items;
-        self.grouped = grouped;
+        self.rows = rows;
     }
 
-    pub fn select_next(&mut self) {
-        let total = self
-            .grouped
+    fn selectable_count(&self) -> usize {
+        self.rows
             .iter()
-            .map(|(_, items)| items.len())
-            .sum::<usize>();
-        if total == 0 {
-            return;
-        }
-        let i = self.list_state.selected().unwrap_or(0);
-        self.list_state.select(Some((i + 1) % total));
+            .filter(|r| matches!(r, DisplayRow::Item(_)))
+            .count()
     }
 
-    pub fn select_previous(&mut self) {
-        let total = self
-            .grouped
-            .iter()
-            .map(|(_, items)| items.len())
-            .sum::<usize>();
-        if total == 0 {
-            return;
+    fn item_index_for_selectable(&self, selectable_idx: usize) -> Option<usize> {
+        let mut count = 0;
+        for (i, row) in self.rows.iter().enumerate() {
+            if matches!(row, DisplayRow::Item(_)) {
+                if count == selectable_idx {
+                    return Some(i);
+                }
+                count += 1;
+            }
         }
-        let i = self.list_state.selected().unwrap_or(0);
-        self.list_state.select(Some((i + total - 1) % total));
+        None
     }
 
-    pub fn selected_item_id(&self) -> Option<uuid::Uuid> {
-        if let Some(idx) = self.list_state.selected() {
+    fn selectable_index(&self) -> Option<usize> {
+        let row_idx = self.list_state.selected()?;
+        if matches!(self.rows.get(row_idx)?, DisplayRow::Item(_)) {
             let mut count = 0;
-            for (_, items) in &self.grouped {
-                for item in items {
-                    if count == idx {
-                        return Some(item.id);
+            for (i, row) in self.rows.iter().enumerate() {
+                if matches!(row, DisplayRow::Item(_)) {
+                    if i == row_idx {
+                        return Some(count);
                     }
                     count += 1;
                 }
@@ -124,9 +150,63 @@ impl ShoppingListState {
         }
         None
     }
+
+    pub fn select_next(&mut self) {
+        let total = self.selectable_count();
+        if total == 0 {
+            return;
+        }
+        let next = self.selectable_index().map(|i| (i + 1) % total).unwrap_or(0);
+        if let Some(row_idx) = self.item_index_for_selectable(next) {
+            self.list_state.select(Some(row_idx));
+        }
+    }
+
+    pub fn select_previous(&mut self) {
+        let total = self.selectable_count();
+        if total == 0 {
+            return;
+        }
+        let prev = self
+            .selectable_index()
+            .map(|i| (i + total - 1) % total)
+            .unwrap_or(0);
+        if let Some(row_idx) = self.item_index_for_selectable(prev) {
+            self.list_state.select(Some(row_idx));
+        }
+    }
+
+    pub fn selected_item_id(&self) -> Option<uuid::Uuid> {
+        let row_idx = self.list_state.selected()?;
+        match self.rows.get(row_idx)? {
+            DisplayRow::Item(item) => Some(item.id),
+            DisplayRow::Header(_) => None,
+        }
+    }
+
+    pub fn ensure_selection(&mut self) {
+        if self.selectable_count() == 0 {
+            self.list_state.select(None);
+            return;
+        }
+        if self
+            .list_state
+            .selected()
+            .and_then(|i| self.rows.get(i))
+            .map(|r| matches!(r, DisplayRow::Item(_)))
+            .unwrap_or(false)
+        {
+            return;
+        }
+        if let Some(row_idx) = self.item_index_for_selectable(0) {
+            self.list_state.select(Some(row_idx));
+        }
+    }
 }
 
-pub fn render(frame: &mut Frame, area: Rect, state: &mut ShoppingListState) {
+pub fn render(frame: &mut Frame, area: Rect, state: &mut ShoppingListState, status: &str) {
+    state.ensure_selection();
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
@@ -139,10 +219,15 @@ pub fn render(frame: &mut Frame, area: Rect, state: &mut ShoppingListState) {
 
     let total = state.items.iter().filter(|i| !i.checked).count();
     let checked = state.items.iter().filter(|i| i.checked).count();
+    let checked_hint = if state.show_checked() {
+        "hiding checked"
+    } else {
+        "v: show checked"
+    };
 
     let header = Paragraph::new(format!(
-        "Shopping List ({} items, {} checked)",
-        total, checked
+        "Shopping List ({} open, {} done) — {}",
+        total, checked, checked_hint
     ))
     .style(
         Style::default()
@@ -157,60 +242,54 @@ pub fn render(frame: &mut Frame, area: Rect, state: &mut ShoppingListState) {
     frame.render_widget(header, chunks[0]);
 
     let mut items: Vec<ListItem> = Vec::new();
-    for (category, cat_items) in &state.grouped {
-        items.push(ListItem::new(Line::from(vec![Span::styled(
-            format!("── {} ──", category),
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )])));
+    for row in &state.rows {
+        match row {
+            DisplayRow::Header(category) => {
+                items.push(ListItem::new(Line::from(vec![Span::styled(
+                    format!("── {} ──", category),
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                )])));
+            }
+            DisplayRow::Item(item) => {
+                let mut spans = vec![Span::raw("  ")];
+                if item.checked {
+                    spans.push(Span::styled(
+                        "[✓] ",
+                        Style::default()
+                            .fg(Color::DarkGray)
+                            .add_modifier(Modifier::DIM),
+                    ));
+                } else {
+                    spans.push(Span::raw("[ ] "));
+                }
 
-        for item in cat_items {
-            let mut spans = vec![Span::raw("  ")];
-
-            if item.checked {
-                spans.push(Span::styled(
-                    "[✓] ",
+                let item_style = if item.checked {
                     Style::default()
                         .fg(Color::DarkGray)
-                        .add_modifier(Modifier::DIM),
-                ));
-            } else {
-                spans.push(Span::raw("[ ] "));
+                        .add_modifier(Modifier::DIM)
+                } else {
+                    Style::default().fg(Color::White)
+                };
+
+                let display = if let (Some(qty), Some(unit)) = (&item.quantity, &item.unit) {
+                    format!("{} {} {}", qty, unit, item.item)
+                } else if let Some(qty) = &item.quantity {
+                    format!("{} {}", qty, item.item)
+                } else {
+                    item.item.clone()
+                };
+
+                spans.push(Span::styled(display, item_style));
+                items.push(ListItem::new(Line::from(spans)));
             }
-
-            let item_style = if item.checked {
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::DIM)
-            } else {
-                Style::default().fg(Color::White)
-            };
-
-            let display = if let (Some(qty), Some(unit)) = (&item.quantity, &item.unit) {
-                format!("{} {} {}", qty, unit, item.item)
-            } else if let Some(qty) = &item.quantity {
-                format!("{} {}", qty, item.item)
-            } else {
-                item.item.clone()
-            };
-
-            spans.push(Span::styled(display, item_style));
-
-            if let Some(ref note) = item.unit {
-                spans.push(Span::styled(
-                    format!(" ({})", note),
-                    Style::default().fg(Color::DarkGray),
-                ));
-            }
-
-            items.push(ListItem::new(Line::from(spans)));
         }
     }
 
     if items.is_empty() {
         items.push(ListItem::new(Line::from(vec![Span::styled(
-            "  Empty - add items from meal plan or recipes",
+            "  Empty — g: from meal plan | a: add item",
             Style::default().fg(Color::DarkGray),
         )])));
     }
@@ -223,6 +302,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &mut ShoppingListState) {
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol(">> ");
+
     if state.adding_item() {
         let prompt = Paragraph::new(format!("Add item: {}▌", state.new_item_text()))
             .style(Style::default().fg(Color::Yellow))
@@ -232,7 +312,10 @@ pub fn render(frame: &mut Frame, area: Rect, state: &mut ShoppingListState) {
         frame.render_stateful_widget(list, chunks[1], &mut state.list_state);
     }
 
-    let footer = Paragraph::new("Space: check | a: add | g: from plan | x: clear done | ?: help")
-        .style(Style::default().fg(Color::DarkGray));
+    let mut footer = "Space: check | a: add | Del: remove | v: toggle done | g: plan | x: clear done | ?: help".to_string();
+    if !status.is_empty() {
+        footer = format!("{} | {}", status, footer);
+    }
+    let footer = Paragraph::new(footer).style(Style::default().fg(Color::DarkGray));
     frame.render_widget(footer, chunks[2]);
 }

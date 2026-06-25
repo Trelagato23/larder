@@ -48,6 +48,8 @@ larder tui
 larder serve
 ```
 
+Web UI supports edit/delete, cooking mode with timers, serving scale, export, and a mobile-friendly meal plan.
+
 Default database: `larder.db` in the working directory. Override with `--database sqlite:/path/to/db` or `DATABASE_URL`.
 
 Web server listens on `0.0.0.0:8080` unless `LARDER_ADDR` or `PORT` is set.

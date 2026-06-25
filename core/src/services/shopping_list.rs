@@ -93,6 +93,14 @@ impl ShoppingListService {
         Ok(())
     }
 
+    pub async fn delete_item(&self, id: Uuid) -> Result<()> {
+        sqlx::query("DELETE FROM shopping_list_items WHERE id = ?")
+            .bind(id.to_string())
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn clear_all(&self, user_id: Uuid) -> Result<()> {
         sqlx::query("DELETE FROM shopping_list_items WHERE user_id = ?")
             .bind(user_id.to_string())

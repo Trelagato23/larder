@@ -85,6 +85,11 @@ impl MealPlanState {
         self.week_start -= Duration::days(7);
     }
 
+    pub fn selected_recipe_id(&self) -> Option<Uuid> {
+        self.meal_for_slot(self.selected_day, self.selected_slot)
+            .and_then(|m| m.recipe_id)
+    }
+
     fn label_for_slot(&self, day_index: usize, slot: usize) -> String {
         match self.meal_for_slot(day_index, slot) {
             Some(meal) => match (&meal.title, meal.recipe_id) {
@@ -101,7 +106,7 @@ impl MealPlanState {
     }
 }
 
-pub fn render(frame: &mut Frame, area: Rect, state: &mut MealPlanState) {
+pub fn render(frame: &mut Frame, area: Rect, state: &mut MealPlanState, status: &str) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
@@ -188,9 +193,11 @@ pub fn render(frame: &mut Frame, area: Rect, state: &mut MealPlanState) {
         );
     frame.render_widget(meals_table, chunks[2]);
 
-    let footer = Paragraph::new(
-        "h/l: day | j/k: meal | [/]: week | a: assign | d: clear | g: shop | ?: help",
-    )
-    .style(Style::default().fg(Color::DarkGray));
+    let mut footer = "h/l: day | j/k: meal | Enter: open | [/]: week | a: assign | d: clear | g: shop | ?: help".to_string();
+    if !status.is_empty() {
+        footer = format!("{} | {}", status, footer);
+    }
+    let footer = Paragraph::new(footer)
+        .style(Style::default().fg(Color::DarkGray));
     frame.render_widget(footer, chunks[3]);
 }

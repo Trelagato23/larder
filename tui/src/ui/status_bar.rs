@@ -6,7 +6,7 @@ use ratatui::{
     widgets::Paragraph,
 };
 
-pub fn render(frame: &mut Frame, area: Rect, active_tab: u8) {
+pub fn render(frame: &mut Frame, area: Rect, active_tab: u8, status: &str) {
     let tabs: [(u8, &str); 4] = [
         (1, "1 Recipes"),
         (2, "2 Import"),
@@ -25,6 +25,12 @@ pub fn render(frame: &mut Frame, area: Rect, active_tab: u8) {
             Style::default().fg(Color::DarkGray)
         };
         spans.push(Span::styled(format!(" {} ", label), style));
+    }
+    if !status.is_empty() {
+        spans.push(Span::styled(
+            format!("  |  {}", status),
+            Style::default().fg(Color::Yellow),
+        ));
     }
     spans.push(Span::styled(
         "  |  1-4: jump  |  ?: help  |  q: quit",

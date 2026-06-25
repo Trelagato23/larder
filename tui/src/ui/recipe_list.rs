@@ -150,10 +150,16 @@ pub fn render(frame: &mut Frame, area: Rect, state: &mut RecipeListState, status
         .block(Block::default().borders(Borders::ALL).title("Recipes"));
     frame.render_widget(header, chunks[0]);
 
-    let items: Vec<ListItem> = state
-        .filtered
-        .iter()
-        .map(|r| {
+    let items: Vec<ListItem> = if state.filtered.is_empty() && !state.recipes.is_empty() {
+        vec![ListItem::new(Line::from(vec![Span::styled(
+            "  No matches — Esc to clear search",
+            Style::default().fg(Color::DarkGray),
+        )]))]
+    } else {
+        state
+            .filtered
+            .iter()
+            .map(|r| {
             let time = r
                 .total_time()
                 .map(|t| format!("{}m", t))
@@ -185,8 +191,9 @@ pub fn render(frame: &mut Frame, area: Rect, state: &mut RecipeListState, status
                 ),
                 Span::styled(rating, Style::default().fg(Color::Yellow)),
             ]))
-        })
-        .collect();
+            })
+            .collect()
+    };
 
     let list = List::new(items)
         .block(Block::default().borders(Borders::ALL).title("Recipes"))

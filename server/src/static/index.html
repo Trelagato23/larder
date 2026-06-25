@@ -3,17 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recipes</title>
-    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <title>Larder</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
-        .container { max-width: 800px; margin: 0 auto; padding: 1rem; }
-        header { background: #16213e; padding: 1rem; border-bottom: 2px solid #0f3460; }
+        .container { max-width: 900px; margin: 0 auto; padding: 1rem; }
+        header { background: #16213e; padding: 1rem; border-bottom: 2px solid #0f3460; position: sticky; top: 0; z-index: 10; }
         header h1 { color: #4ecca3; font-size: 1.5rem; }
-        nav { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-        nav button { background: #0f3460; color: #eee; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
-        nav button:hover, nav button.active { background: #4ecca3; color: #1a1a2e; }
+        nav { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+        nav button, .btn { background: #0f3460; color: #eee; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+        nav button:hover, nav button.active, .btn:hover { background: #4ecca3; color: #1a1a2e; }
+        .btn-danger { background: #5c1a28; }
+        .btn-danger:hover { background: #e94560; color: #fff; }
+        .btn-small { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
         .card { background: #16213e; border-radius: 8px; padding: 1rem; margin: 0.5rem 0; border-left: 3px solid #4ecca3; }
         .card h3 { color: #4ecca3; margin-bottom: 0.5rem; }
         .card .meta { color: #888; font-size: 0.85rem; margin-bottom: 0.5rem; }
@@ -21,41 +23,75 @@
         .recipe-detail { background: #16213e; border-radius: 8px; padding: 1.5rem; margin: 1rem 0; }
         .recipe-detail h2 { color: #4ecca3; margin-bottom: 0.5rem; }
         .recipe-detail .description { color: #aaa; margin-bottom: 1rem; }
-        .recipe-detail .meta { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+        .recipe-detail .meta { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
         .recipe-detail .meta span { background: #0f3460; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.85rem; }
+        .detail-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
         .ingredients { margin: 1rem 0; }
-        .ingredients h3 { color: #e94560; margin-bottom: 0.5rem; }
+        .ingredients h3, .steps h3 { color: #e94560; margin-bottom: 0.5rem; }
         .ingredients ul { list-style: none; }
         .ingredients li { padding: 0.25rem 0; border-bottom: 1px solid #0f3460; }
         .ingredients li::before { content: "• "; color: #4ecca3; }
         .steps { margin: 1rem 0; }
-        .steps h3 { color: #e94560; margin-bottom: 0.5rem; }
         .steps ol { padding-left: 1.5rem; }
         .steps li { padding: 0.5rem 0; line-height: 1.6; }
+        .steps li.active { background: #0f3460; border-radius: 4px; padding: 0.75rem; margin: 0.25rem 0; list-style-position: inside; }
         .steps .timer { color: #4ecca3; font-size: 0.85rem; }
-        .search { display: flex; gap: 0.5rem; margin: 1rem 0; }
-        .search input { flex: 1; background: #0f3460; border: 1px solid #4ecca3; color: #eee; padding: 0.5rem 1rem; border-radius: 4px; font-size: 1rem; }
-        .search input:focus { outline: none; border-color: #4ecca3; box-shadow: 0 0 5px #4ecca3; }
+        .timer-live { font-size: 1.2rem; color: #4ecca3; font-weight: bold; margin: 0.5rem 0; }
+        .search { display: flex; gap: 0.5rem; margin: 1rem 0; flex-wrap: wrap; }
+        .search input, .search select, .form-grid input, .form-grid textarea, .form-grid select {
+            flex: 1; min-width: 140px; background: #0f3460; border: 1px solid #4ecca3; color: #eee;
+            padding: 0.5rem 1rem; border-radius: 4px; font-size: 1rem;
+        }
+        .search input:focus, .form-grid input:focus, .form-grid textarea:focus { outline: none; box-shadow: 0 0 5px #4ecca3; }
         .search button { background: #4ecca3; color: #1a1a2e; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .empty { text-align: center; padding: 3rem; color: #666; }
         .empty p { margin-bottom: 1rem; }
-        .empty button { background: #4ecca3; color: #1a1a2e; border: none; padding: 0.5rem 1.5rem; border-radius: 4px; cursor: pointer; }
         .back-btn { background: #0f3460; color: #eee; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-bottom: 1rem; }
         .back-btn:hover { background: #4ecca3; color: #1a1a2e; }
-        .tag { display: inline-block; background: #e94560; color: #fff; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-right: 0.25rem; }
+        .tag { display: inline-block; background: #e94560; color: #fff; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin: 0.15rem 0.25rem 0.15rem 0; cursor: pointer; }
+        .tag .remove { margin-left: 0.35rem; opacity: 0.8; }
         select { background: #0f3460; color: #eee; border: 1px solid #4ecca3; border-radius: 4px; padding: 0.25rem; font-size: 0.8rem; max-width: 100%; }
         footer { text-align: center; padding: 1rem; color: #444; font-size: 0.8rem; }
+        #toasts { position: fixed; bottom: 1rem; right: 1rem; z-index: 100; display: flex; flex-direction: column; gap: 0.5rem; max-width: 320px; }
+        .toast { background: #16213e; border-left: 3px solid #4ecca3; padding: 0.75rem 1rem; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); animation: fadein 0.2s; }
+        .toast.error { border-color: #e94560; }
+        @keyframes fadein { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+        .modal { background: #16213e; border-radius: 8px; padding: 1.25rem; width: 100%; max-width: 480px; border: 1px solid #0f3460; }
+        .modal h3 { color: #4ecca3; margin-bottom: 1rem; }
+        .form-grid { display: grid; gap: 0.75rem; }
+        .form-grid label { display: grid; gap: 0.25rem; font-size: 0.85rem; color: #aaa; }
+        .modal-actions { display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: flex-end; }
+        .meal-day { background: #0f3460; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem; }
+        .meal-day h4 { color: #4ecca3; margin-bottom: 0.5rem; }
+        .meal-slot { display: grid; grid-template-columns: 90px 1fr; gap: 0.5rem; align-items: center; margin-bottom: 0.35rem; }
+        .meal-slot label { color: #888; font-size: 0.85rem; text-transform: capitalize; }
+        .shopping-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid #0f3460; }
+        .shopping-row.checked { opacity: 0.55; text-decoration: line-through; }
+        .scale-controls { display: flex; align-items: center; gap: 0.5rem; }
+        .scale-controls button { width: 2rem; height: 2rem; font-size: 1.1rem; }
+        .cook-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; }
+        a { color: #4ecca3; }
+        @media (min-width: 768px) {
+            .meal-desktop { display: block; }
+            .meal-mobile { display: none; }
+        }
+        @media (max-width: 767px) {
+            .meal-desktop { display: none; }
+            .meal-mobile { display: block; }
+        }
     </style>
 </head>
 <body>
 <header>
     <div class="container">
-        <h1>Recipes</h1>
+        <h1>Larder</h1>
         <nav>
             <button onclick="showView('recipes')" id="nav-recipes" class="active">Recipes</button>
             <button onclick="showView('import')" id="nav-import">Import</button>
             <button onclick="showView('mealplan')" id="nav-mealplan">Meal Plan</button>
             <button onclick="showView('shopping')" id="nav-shopping">Shopping</button>
+            <button onclick="exportRecipes('json')" title="Export JSON">Export</button>
         </nav>
     </div>
 </header>
@@ -73,8 +109,9 @@
     <div id="view-import" style="display:none">
         <div class="card">
             <h3>Import Recipe from URL</h3>
+            <p style="color:#888;font-size:0.9rem;margin-bottom:0.5rem">Works best with sites that publish structured recipe data.</p>
             <div class="search" style="margin-top:0.5rem">
-                <input type="text" id="import-url" placeholder="https://www.allrecipes.com/recipe/...">
+                <input type="text" id="import-url" placeholder="https://example.com/recipe...">
                 <button onclick="importRecipe()">Import</button>
             </div>
             <p id="import-status" style="margin-top:0.5rem;color:#888;font-size:0.85rem"></p>
@@ -95,7 +132,7 @@
                 <button class="back-btn" onclick="shiftWeek(1)">Next week →</button>
             </div>
             <div id="meal-plan-grid"></div>
-            <button onclick="generateShoppingFromPlan()">Generate shopping list from this week</button>
+            <button class="btn" style="margin-top:0.75rem" onclick="generateShoppingFromPlan()">Generate shopping list from this week</button>
             <p id="mealplan-status" style="margin-top:0.5rem;color:#888;font-size:0.85rem"></p>
         </div>
     </div>
@@ -104,7 +141,7 @@
         <div class="card">
             <h3>Shopping List</h3>
             <div class="search" style="margin-top:0.5rem">
-                <input type="text" id="shopping-item" placeholder="Add item...">
+                <input type="text" id="shopping-item" placeholder="Add item..." onkeyup="if(event.key==='Enter')addShoppingItem()">
                 <button onclick="addShoppingItem()">Add</button>
             </div>
             <button class="back-btn" style="margin-top:0.5rem" onclick="clearCheckedShopping()">Clear checked</button>
@@ -113,12 +150,35 @@
     </div>
 </div>
 
-<footer></footer>
+<div id="toasts"></div>
+<div id="modal-root"></div>
+<footer><div class="container">Larder — recipe manager</div></footer>
 
 <script>
 const API = '/api';
 let mealWeekStart = mondayOf(new Date());
 let allRecipes = [];
+let currentRecipe = null;
+let displayServings = 1;
+let cookState = null;
+let cookTimer = null;
+
+function toast(msg, isError) {
+    const el = document.createElement('div');
+    el.className = 'toast' + (isError ? ' error' : '');
+    el.textContent = msg;
+    document.getElementById('toasts').appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+}
+
+function scaleDisplay(display, original, target) {
+    if (!display || original === target || !original) return display;
+    const m = display.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
+    if (!m) return display;
+    const scaled = parseFloat(m[1]) * target / original;
+    const formatted = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(2).replace(/\.?0+$/, '');
+    return formatted + (m[2] ? ' ' + m[2] : '');
+}
 
 async function loadAllRecipes() {
     const res = await fetch(API + '/recipes');
@@ -143,8 +203,7 @@ function filterByTag() {
 
 async function loadRecipesByTag(tag) {
     const res = await fetch(API + '/recipes?tag=' + encodeURIComponent(tag));
-    const recipes = await res.json();
-    renderRecipeList(recipes);
+    renderRecipeList(await res.json());
 }
 
 function mondayOf(date) {
@@ -166,6 +225,7 @@ function shiftWeek(delta) {
 }
 
 function showView(view) {
+    stopCookTimer();
     document.querySelectorAll('[id^="view-"]').forEach(el => el.style.display = 'none');
     document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
     document.getElementById('view-' + view).style.display = 'block';
@@ -178,64 +238,48 @@ function showView(view) {
 
 async function loadRecipes() {
     try {
-        const res = await fetch(API + '/recipes');
-        const recipes = await res.json();
-        renderRecipeList(recipes);
+        renderRecipeList(await (await fetch(API + '/recipes')).json());
     } catch (e) {
         document.getElementById('recipe-list').innerHTML = '<div class="empty"><p>Error loading recipes. Is the server running?</p></div>';
     }
 }
 
 function renderRecipeList(recipes) {
-        const container = document.getElementById('recipe-list');
-
-        if (recipes.length === 0) {
-            container.innerHTML = '<div class="empty"><p>No recipes yet</p><button onclick="showView(\'import\')">Import your first recipe</button></div>';
-            return;
-        }
-
-        container.innerHTML = recipes.map(r => {
-            const time = r.total_time_minutes ? r.total_time_minutes + ' min' : '?';
-            const rating = r.rating ? '★'.repeat(r.rating) : '';
-            return '<div class="card" onclick="showRecipe(\'' + r.id + '\')" style="cursor:pointer">' +
-                '<h3>' + escapeHtml(r.name) + '</h3>' +
-                '<div class="meta">' +
-                '<span>⏱ ' + time + '</span>' +
-                '<span>🍽 ' + r.servings + ' servings</span>' +
-                (rating ? '<span>' + rating + '</span>' : '') +
-                '</div>' +
-                (r.description ? '<p style="color:#aaa;font-size:0.9rem">' + escapeHtml(r.description).substring(0, 100) + '...</p>' : '') +
-                '</div>';
-        }).join('');
+    const container = document.getElementById('recipe-list');
+    if (recipes.length === 0) {
+        container.innerHTML = '<div class="empty"><p>No recipes yet</p><button class="btn" onclick="showView(\'import\')">Import your first recipe</button></div>';
+        return;
+    }
+    container.innerHTML = recipes.map(r => {
+        const time = r.total_time_minutes ? r.total_time_minutes + ' min' : '?';
+        const rating = r.rating ? '★'.repeat(r.rating) : '';
+        return '<div class="card" onclick="showRecipe(\'' + r.id + '\')" style="cursor:pointer">' +
+            '<h3>' + escapeHtml(r.name) + '</h3>' +
+            '<div class="meta"><span>' + time + '</span><span>' + r.servings + ' servings</span>' +
+            (rating ? '<span>' + rating + '</span>' : '') + '</div>' +
+            (r.description ? '<p style="color:#aaa;font-size:0.9rem">' + escapeHtml(r.description).substring(0, 120) + '</p>' : '') +
+            '</div>';
+    }).join('');
 }
 
 async function searchRecipes() {
     const query = document.getElementById('search-input').value.trim();
     if (!query) { loadRecipes(); return; }
-
     try {
-        const res = await fetch(API + '/recipes/search?q=' + encodeURIComponent(query));
-        const recipes = await res.json();
+        const recipes = await (await fetch(API + '/recipes/search?q=' + encodeURIComponent(query))).json();
         const container = document.getElementById('recipe-list');
-
         if (recipes.length === 0) {
             container.innerHTML = '<div class="empty"><p>No recipes found for "' + escapeHtml(query) + '"</p></div>';
             return;
         }
-
-        container.innerHTML = recipes.map(r => {
-            const time = r.total_time_minutes ? r.total_time_minutes + ' min' : '?';
-            return '<div class="card" onclick="showRecipe(\'' + r.id + '\')" style="cursor:pointer">' +
-                '<h3>' + escapeHtml(r.name) + '</h3>' +
-                '<div class="meta"><span>⏱ ' + time + '</span></div></div>';
-        }).join('');
-    } catch (e) {
-        console.error(e);
-    }
+        renderRecipeList(recipes);
+    } catch (e) { toast('Search failed', true); }
 }
 
 async function showRecipe(id) {
     showView('detail');
+    stopCookTimer();
+    cookState = null;
     try {
         const [recipeRes, ingredientsRes, stepsRes, tagsRes] = await Promise.all([
             fetch(API + '/recipes/' + id),
@@ -243,166 +287,332 @@ async function showRecipe(id) {
             fetch(API + '/recipes/' + id + '/steps'),
             fetch(API + '/recipes/' + id + '/tags'),
         ]);
-
         const recipe = await recipeRes.json();
         const ingredients = await ingredientsRes.json();
         const steps = await stepsRes.json();
         const tags = await tagsRes.json();
-
-        let meta = [];
-        if (recipe.total_time_minutes) meta.push('⏱ ' + recipe.total_time_minutes + ' min');
-        meta.push('🍽 ' + recipe.servings + ' servings');
-        if (recipe.difficulty) meta.push('📊 ' + recipe.difficulty);
-        if (recipe.rating) meta.push('⭐ ' + '★'.repeat(recipe.rating));
-
-        let html = '<div class="recipe-detail">' +
-            '<h2>' + escapeHtml(recipe.name) + '</h2>' +
-            (recipe.description ? '<p class="description">' + escapeHtml(recipe.description) + '</p>' : '') +
-            '<div class="meta">' + meta.map(m => '<span>' + m + '</span>').join('') + '</div>';
-
-        if (tags.length > 0) {
-            html += '<p style="margin:0.5rem 0">' + tags.map(t => '<span class="tag">#' + escapeHtml(t.name) + '</span>').join('') + '</p>';
-        }
-        html += '<div class="search" style="margin:0.5rem 0"><input type="text" id="new-tag" placeholder="Add tag..."><button onclick="addTag(\'' + id + '\')">Add tag</button></div>';
-
-        if (ingredients.length > 0) {
-            html += '<div class="ingredients"><h3>Ingredients</h3><ul>' +
-                ingredients.map(i => '<li>' + escapeHtml(i.display) + '</li>').join('') +
-                '</ul></div>';
-        }
-
-        if (steps.length > 0) {
-            html += '<div class="steps"><h3>Steps</h3><ol>' +
-                steps.map(s => {
-                    let stepHtml = '<li>' + escapeHtml(s.instruction);
-                    if (s.timer_seconds) {
-                        const min = Math.floor(s.timer_seconds / 60);
-                        const sec = s.timer_seconds % 60;
-                        stepHtml += ' <span class="timer">[⏱ ' + min + ':' + String(sec).padStart(2, '0') + ']</span>';
-                    }
-                    stepHtml += '</li>';
-                    return stepHtml;
-                }).join('') +
-                '</ol></div>';
-        }
-
-        html += '</div>';
-        document.getElementById('recipe-detail').innerHTML = html;
+        currentRecipe = { recipe, ingredients, steps, tags };
+        displayServings = recipe.servings;
+        renderRecipeDetail();
     } catch (e) {
         document.getElementById('recipe-detail').innerHTML = '<div class="empty"><p>Error loading recipe</p></div>';
     }
 }
 
+function renderRecipeDetail() {
+    if (!currentRecipe) return;
+    const { recipe, ingredients, steps, tags } = currentRecipe;
+    const id = recipe.id;
+    let meta = [];
+    if (recipe.total_time_minutes) meta.push(recipe.total_time_minutes + ' min');
+    if (recipe.prep_time_minutes) meta.push('prep ' + recipe.prep_time_minutes + 'm');
+    if (recipe.cook_time_minutes) meta.push('cook ' + recipe.cook_time_minutes + 'm');
+    if (recipe.difficulty) meta.push(recipe.difficulty);
+    if (recipe.rating) meta.push('★'.repeat(recipe.rating));
+
+    let html = '<div class="recipe-detail">' +
+        '<h2>' + escapeHtml(recipe.name) + '</h2>' +
+        (recipe.description ? '<p class="description">' + escapeHtml(recipe.description) + '</p>' : '') +
+        (recipe.source_url ? '<p><a href="' + escapeHtml(recipe.source_url) + '" target="_blank" rel="noopener">View source</a></p>' : '') +
+        '<div class="meta">' + meta.map(m => '<span>' + m + '</span>').join('') + '</div>' +
+        '<div class="scale-controls"><span>Servings:</span>' +
+        '<button class="btn btn-small" onclick="changeServings(-1)">−</button>' +
+        '<strong id="serving-count">' + displayServings + '</strong>' +
+        '<button class="btn btn-small" onclick="changeServings(1)">+</button></div>' +
+        '<div class="detail-actions">' +
+        '<button class="btn" onclick="startCooking()">Cook</button>' +
+        '<button class="btn" onclick="openEditModal()">Edit</button>' +
+        '<button class="btn btn-danger" onclick="confirmDeleteRecipe()">Delete</button>' +
+        '</div>';
+
+    if (tags.length > 0) {
+        html += '<p style="margin:0.5rem 0">' + tags.map(t =>
+            '<span class="tag" onclick="filterByTagName(\'' + escapeHtml(t.name) + '\')">#' + escapeHtml(t.name) +
+            '<span class="remove" onclick="event.stopPropagation();removeTag(\'' + id + '\',\'' + t.id + '\')">×</span></span>'
+        ).join('') + '</p>';
+    }
+    html += '<div class="search" style="margin:0.5rem 0"><input type="text" id="new-tag" placeholder="Add tag..."><button class="btn" onclick="addTag(\'' + id + '\')">Add tag</button></div>';
+
+    if (ingredients.length > 0) {
+        html += '<div class="ingredients"><h3>Ingredients</h3><ul id="ingredient-list">' +
+            ingredients.map(i => '<li>' + escapeHtml(scaleDisplay(i.display, recipe.servings, displayServings)) + '</li>').join('') +
+            '</ul></div>';
+    }
+
+    if (steps.length > 0) {
+        html += '<div class="steps" id="steps-section"><h3>Steps</h3><ol id="step-list">' +
+            steps.map((s, idx) => {
+                let stepHtml = '<li id="step-' + idx + '">' + escapeHtml(s.instruction);
+                if (s.timer_seconds) {
+                    const min = Math.floor(s.timer_seconds / 60);
+                    const sec = s.timer_seconds % 60;
+                    stepHtml += ' <span class="timer">[' + min + ':' + String(sec).padStart(2, '0') + ']</span>';
+                }
+                return stepHtml + '</li>';
+            }).join('') + '</ol></div>';
+        html += '<div id="cook-panel"></div>';
+    }
+    html += '</div>';
+    document.getElementById('recipe-detail').innerHTML = html;
+}
+
+function changeServings(delta) {
+    if (!currentRecipe) return;
+    displayServings = Math.max(1, displayServings + delta);
+    renderRecipeDetail();
+}
+
+function filterByTagName(name) {
+    document.getElementById('tag-filter').value = name;
+    showView('recipes');
+    loadRecipesByTag(name);
+}
+
+function openEditModal() {
+    if (!currentRecipe) return;
+    const r = currentRecipe.recipe;
+    document.getElementById('modal-root').innerHTML =
+        '<div class="modal-backdrop" onclick="if(event.target===this)closeModal()">' +
+        '<div class="modal"><h3>Edit recipe</h3><div class="form-grid">' +
+        '<label>Name<input id="edit-name" value="' + escapeHtml(r.name) + '"></label>' +
+        '<label>Description<textarea id="edit-desc" rows="3">' + escapeHtml(r.description || '') + '</textarea></label>' +
+        '<label>Servings<input type="number" id="edit-servings" min="1" value="' + r.servings + '"></label>' +
+        '<label>Prep (min)<input type="number" id="edit-prep" min="0" value="' + (r.prep_time_minutes || '') + '"></label>' +
+        '<label>Cook (min)<input type="number" id="edit-cook" min="0" value="' + (r.cook_time_minutes || '') + '"></label>' +
+        '<label>Rating (1-5)<input type="number" id="edit-rating" min="1" max="5" value="' + (r.rating || '') + '"></label>' +
+        '<label>Difficulty<select id="edit-diff"><option value="">—</option>' +
+        ['easy','medium','hard'].map(d => '<option value="' + d + '"' + (r.difficulty === d ? ' selected' : '') + '>' + d + '</option>').join('') +
+        '</select></label></div>' +
+        '<div class="modal-actions"><button class="btn" onclick="closeModal()">Cancel</button>' +
+        '<button class="btn" onclick="saveRecipeEdit()">Save</button></div></div></div>';
+}
+
+function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
+
+async function saveRecipeEdit() {
+    if (!currentRecipe) return;
+    const id = currentRecipe.recipe.id;
+    const body = {
+        name: document.getElementById('edit-name').value.trim(),
+        description: document.getElementById('edit-desc').value.trim() || null,
+        servings: parseInt(document.getElementById('edit-servings').value, 10) || 1,
+        prep_time_minutes: parseInt(document.getElementById('edit-prep').value, 10) || null,
+        cook_time_minutes: parseInt(document.getElementById('edit-cook').value, 10) || null,
+        rating: parseInt(document.getElementById('edit-rating').value, 10) || null,
+        difficulty: document.getElementById('edit-diff').value || null,
+    };
+    if (!body.name) { toast('Name is required', true); return; }
+    const res = await fetch(API + '/recipes/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!res.ok) { toast('Save failed', true); return; }
+    closeModal();
+    toast('Recipe saved');
+    showRecipe(id);
+}
+
+async function confirmDeleteRecipe() {
+    if (!currentRecipe || !confirm('Delete "' + currentRecipe.recipe.name + '"? This cannot be undone.')) return;
+    const id = currentRecipe.recipe.id;
+    const res = await fetch(API + '/recipes/' + id, { method: 'DELETE' });
+    if (!res.ok) { toast('Delete failed', true); return; }
+    toast('Recipe deleted');
+    currentRecipe = null;
+    showView('recipes');
+}
+
+function startCooking() {
+    if (!currentRecipe || !currentRecipe.steps.length) return;
+    cookState = { step: 0, remaining: currentRecipe.steps[0].timer_seconds || null, running: false };
+    renderCookPanel();
+    highlightCookStep();
+}
+
+function renderCookPanel() {
+    const panel = document.getElementById('cook-panel');
+    if (!panel || !cookState) return;
+    const step = currentRecipe.steps[cookState.step];
+    let timerHtml = '';
+    if (cookState.remaining != null) {
+        const min = Math.floor(cookState.remaining / 60);
+        const sec = cookState.remaining % 60;
+        const label = cookState.remaining === 0 ? 'DONE' : (cookState.running ? 'Running' : 'Paused');
+        timerHtml = '<div class="timer-live">' + label + ': ' + min + ':' + String(sec).padStart(2, '0') + '</div>';
+    }
+    panel.innerHTML = '<div class="card"><h3>Cooking mode — step ' + (cookState.step + 1) + ' of ' + currentRecipe.steps.length + '</h3>' +
+        timerHtml +
+        '<div class="cook-bar">' +
+        '<button class="btn" onclick="cookPrev()">Prev</button>' +
+        '<button class="btn" onclick="cookNext()">Next</button>' +
+        (cookState.remaining != null ? '<button class="btn" onclick="toggleCookTimer()">' + (cookState.running ? 'Pause' : 'Start timer') + '</button>' : '') +
+        '<button class="btn" onclick="stopCooking()">Exit cook mode</button></div></div>';
+}
+
+function highlightCookStep() {
+    document.querySelectorAll('#step-list li').forEach((li, i) => li.classList.toggle('active', i === cookState.step));
+    const el = document.getElementById('step-' + cookState.step);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function cookNext() {
+    if (cookState.step + 1 < currentRecipe.steps.length) {
+        cookState.step++;
+        cookState.remaining = currentRecipe.steps[cookState.step].timer_seconds || null;
+        cookState.running = false;
+        stopCookTimer();
+        renderCookPanel();
+        highlightCookStep();
+    }
+}
+
+function cookPrev() {
+    if (cookState.step > 0) {
+        cookState.step--;
+        cookState.remaining = currentRecipe.steps[cookState.step].timer_seconds || null;
+        cookState.running = false;
+        stopCookTimer();
+        renderCookPanel();
+        highlightCookStep();
+    }
+}
+
+function toggleCookTimer() {
+    if (!cookState || cookState.remaining == null) return;
+    cookState.running = !cookState.running;
+    if (cookState.running) {
+        cookTimer = setInterval(() => {
+            if (cookState.remaining > 0) {
+                cookState.remaining--;
+                renderCookPanel();
+            } else {
+                cookState.running = false;
+                stopCookTimer();
+                renderCookPanel();
+                toast('Timer done');
+            }
+        }, 1000);
+    } else {
+        stopCookTimer();
+    }
+    renderCookPanel();
+}
+
+function stopCookTimer() {
+    if (cookTimer) { clearInterval(cookTimer); cookTimer = null; }
+}
+
+function stopCooking() {
+    stopCookTimer();
+    cookState = null;
+    document.getElementById('cook-panel').innerHTML = '';
+    document.querySelectorAll('#step-list li').forEach(li => li.classList.remove('active'));
+}
+
 async function importRecipe() {
     const url = document.getElementById('import-url').value.trim();
     if (!url) return;
-
     const status = document.getElementById('import-status');
     status.textContent = 'Fetching and parsing...';
     status.style.color = '#e94560';
-
     try {
-        const res = await fetch(API + '/import', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: url })
-        });
-
-        if (!res.ok) {
-            const err = await res.text();
-            status.textContent = 'Error: ' + err;
-            status.style.color = '#e94560';
-            return;
-        }
-
+        const res = await fetch(API + '/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+        if (!res.ok) { status.textContent = 'Error: ' + await res.text(); status.style.color = '#e94560'; return; }
         const recipe = await res.json();
         status.textContent = 'Imported: ' + recipe.name;
         status.style.color = '#4ecca3';
+        toast('Imported: ' + recipe.name);
         document.getElementById('import-url').value = '';
-        setTimeout(() => showView('recipes'), 1500);
+        setTimeout(() => showView('recipes'), 1200);
     } catch (e) {
         status.textContent = 'Error: ' + e.message;
         status.style.color = '#e94560';
     }
 }
 
+function exportRecipes(format) {
+    window.location.href = API + '/export?format=' + encodeURIComponent(format);
+    toast('Downloading ' + format + ' export');
+}
+
 function escapeHtml(text) {
+    if (text == null) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function mealSelectHtml(dateStr, mealType, selected) {
+    let html = '<select onchange="assignMeal(\'' + dateStr + '\',\'' + mealType + '\', this.value)">';
+    html += '<option value="">—</option>';
+    allRecipes.forEach(r => {
+        html += '<option value="' + r.id + '"' + (r.id === selected ? ' selected' : '') + '>' + escapeHtml(r.name) + '</option>';
+    });
+    return html + '</select>';
 }
 
 async function loadMealPlan() {
     if (allRecipes.length === 0) await loadAllRecipes();
     const weekEnd = new Date(mealWeekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
-    document.getElementById('meal-week-label').textContent =
-        formatDate(mealWeekStart) + ' — ' + formatDate(weekEnd);
-
+    document.getElementById('meal-week-label').textContent = formatDate(mealWeekStart) + ' — ' + formatDate(weekEnd);
     try {
-        const res = await fetch(API + '/meal-plans?week_start=' + formatDate(mealWeekStart));
-        const meals = await res.json();
+        const meals = await (await fetch(API + '/meal-plans?week_start=' + formatDate(mealWeekStart))).json();
         const byKey = {};
         meals.forEach(m => { byKey[m.date + ':' + m.meal_type] = m; });
-
         const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
         const types = ['breakfast','lunch','dinner','snack'];
-        let html = '<table style="width:100%;border-collapse:collapse;font-size:0.9rem">';
-        html += '<tr><th style="text-align:left;padding:0.25rem">Day</th>';
-        types.forEach(t => html += '<th style="text-align:left;padding:0.25rem">' + t + '</th>');
-        html += '</tr>';
-
+        let desktop = '<table class="meal-desktop" style="width:100%;border-collapse:collapse;font-size:0.9rem">';
+        desktop += '<tr><th style="text-align:left;padding:0.25rem">Day</th>';
+        types.forEach(t => desktop += '<th style="text-align:left;padding:0.25rem">' + t + '</th>');
+        desktop += '</tr>';
+        let mobile = '<div class="meal-mobile">';
         for (let i = 0; i < 7; i++) {
             const d = new Date(mealWeekStart);
             d.setDate(d.getDate() + i);
             const dateStr = formatDate(d);
-            html += '<tr><td style="padding:0.25rem;color:#4ecca3">' + days[i] + ' ' + d.getDate() + '</td>';
+            desktop += '<tr><td style="padding:0.25rem;color:#4ecca3;white-space:nowrap">' + days[i] + ' ' + d.getDate() + '</td>';
+            mobile += '<div class="meal-day"><h4>' + days[i] + ' ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + '</h4>';
             types.forEach(t => {
                 const meal = byKey[dateStr + ':' + t];
                 const selected = meal && meal.recipe_id ? meal.recipe_id : '';
-                html += '<td style="padding:0.25rem;border-top:1px solid #0f3460">';
-                html += '<select onchange="assignMeal(\'' + dateStr + '\',\'' + t + '\', this.value)">';
-                html += '<option value="">—</option>';
-                allRecipes.forEach(r => {
-                    html += '<option value="' + r.id + '"' + (r.id === selected ? ' selected' : '') + '>' + escapeHtml(r.name) + '</option>';
-                });
-                html += '</select></td>';
+                desktop += '<td style="padding:0.25rem;border-top:1px solid #0f3460">' + mealSelectHtml(dateStr, t, selected) + '</td>';
+                mobile += '<div class="meal-slot"><label>' + t + '</label>' + mealSelectHtml(dateStr, t, selected) + '</div>';
             });
-            html += '</tr>';
+            desktop += '</tr>';
+            mobile += '</div>';
         }
-        html += '</table>';
-        document.getElementById('meal-plan-grid').innerHTML = html;
+        desktop += '</table>';
+        mobile += '</div>';
+        document.getElementById('meal-plan-grid').innerHTML = desktop + mobile;
     } catch (e) {
         document.getElementById('meal-plan-grid').innerHTML = '<p class="empty">Error loading meal plan</p>';
     }
 }
 
 async function assignMeal(date, mealType, recipeId) {
-    if (!recipeId) {
-        await fetch(API + '/meal-plans/clear', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ date, meal_type: mealType })
-        });
-    } else {
-        await fetch(API + '/meal-plans', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ date, meal_type: mealType, recipe_id: recipeId })
-        });
-    }
-    loadMealPlan();
+    try {
+        if (!recipeId) {
+            await fetch(API + '/meal-plans/clear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, meal_type: mealType }) });
+        } else {
+            await fetch(API + '/meal-plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, meal_type: mealType, recipe_id: recipeId }) });
+        }
+        toast('Meal plan updated');
+        loadMealPlan();
+    } catch (e) { toast('Failed to update meal', true); }
 }
 
 async function addTag(recipeId) {
     const input = document.getElementById('new-tag');
     const name = input.value.trim();
     if (!name) return;
-    await fetch(API + '/recipes/' + recipeId + '/tags', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-    });
+    const res = await fetch(API + '/recipes/' + recipeId + '/tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+    if (!res.ok) { toast('Failed to add tag', true); return; }
+    toast('Tag added');
+    showRecipe(recipeId);
+}
+
+async function removeTag(recipeId, tagId) {
+    const res = await fetch(API + '/recipes/' + recipeId + '/tags/' + tagId, { method: 'DELETE' });
+    if (!res.ok) { toast('Failed to remove tag', true); return; }
+    toast('Tag removed');
     showRecipe(recipeId);
 }
 
@@ -410,38 +620,32 @@ async function generateShoppingFromPlan() {
     const status = document.getElementById('mealplan-status');
     status.textContent = 'Generating...';
     try {
-        const res = await fetch(API + '/meal-plans/generate-shopping', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ week_start: formatDate(mealWeekStart) })
-        });
+        const res = await fetch(API + '/meal-plans/generate-shopping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ week_start: formatDate(mealWeekStart) }) });
         const data = await res.json();
         status.textContent = 'Added ' + data.added + ' items to shopping list';
         status.style.color = '#4ecca3';
+        toast('Added ' + data.added + ' items to shopping list');
     } catch (e) {
         status.textContent = 'Error generating list';
         status.style.color = '#e94560';
+        toast('Generate failed', true);
     }
 }
 
 async function loadShopping() {
     try {
-        const res = await fetch(API + '/shopping');
-        const items = await res.json();
+        const items = await (await fetch(API + '/shopping')).json();
         const container = document.getElementById('shopping-list');
         if (items.length === 0) {
-            container.innerHTML = '<p style="color:#666">No items yet</p>';
+            container.innerHTML = '<p style="color:#666">No items yet — add manually or generate from meal plan</p>';
             return;
         }
         container.innerHTML = items.map(i => {
-            const checked = i.checked ? 'checked' : '';
-            const style = i.checked ? 'text-decoration:line-through;color:#666' : '';
             const label = [i.quantity, i.unit, i.item].filter(Boolean).join(' ');
-            return '<label style="display:block;padding:0.35rem 0;border-bottom:1px solid #0f3460;' + style + '">' +
-                '<input type="checkbox" ' + checked + ' onchange="toggleShopping(\'' + i.id + '\')"> ' +
-                escapeHtml(label) +
-                (i.category ? ' <span style="color:#888;font-size:0.8rem">(' + escapeHtml(i.category) + ')</span>' : '') +
-                '</label>';
+            return '<div class="shopping-row' + (i.checked ? ' checked' : '') + '">' +
+                '<input type="checkbox" ' + (i.checked ? 'checked' : '') + ' onchange="toggleShopping(\'' + i.id + '\')">' +
+                '<span style="flex:1">' + escapeHtml(label) + (i.category ? ' <span style="color:#888;font-size:0.8rem">(' + escapeHtml(i.category) + ')</span>' : '') + '</span>' +
+                '<button class="btn btn-small btn-danger" onclick="deleteShopping(\'' + i.id + '\')">×</button></div>';
         }).join('');
     } catch (e) {
         document.getElementById('shopping-list').innerHTML = '<p>Error loading shopping list</p>';
@@ -452,12 +656,10 @@ async function addShoppingItem() {
     const input = document.getElementById('shopping-item');
     const item = input.value.trim();
     if (!item) return;
-    await fetch(API + '/shopping', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item })
-    });
+    const res = await fetch(API + '/shopping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item }) });
+    if (!res.ok) { toast('Failed to add item', true); return; }
     input.value = '';
+    toast('Item added');
     loadShopping();
 }
 
@@ -466,8 +668,16 @@ async function toggleShopping(id) {
     loadShopping();
 }
 
+async function deleteShopping(id) {
+    const res = await fetch(API + '/shopping/' + id, { method: 'DELETE' });
+    if (!res.ok) { toast('Failed to remove item', true); return; }
+    toast('Item removed');
+    loadShopping();
+}
+
 async function clearCheckedShopping() {
     await fetch(API + '/shopping/clear-checked', { method: 'POST' });
+    toast('Cleared checked items');
     loadShopping();
 }
 

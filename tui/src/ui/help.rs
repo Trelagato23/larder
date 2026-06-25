@@ -89,6 +89,7 @@ pub fn render(frame: &mut Frame, area: Rect) {
         Line::from(""),
         Line::from("  Space/c   Check / uncheck item"),
         Line::from("  a         Add item manually"),
+        Line::from("  v         Toggle show checked items"),
         Line::from("  x         Remove checked items"),
         Line::from(""),
         Line::from(vec![Span::styled(

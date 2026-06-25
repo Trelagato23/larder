@@ -30,6 +30,7 @@ struct App {
     mode: AppMode,
     should_quit: bool,
     show_help: bool,
+    confirm_delete: bool,
     recipe_list: RecipeListState,
     recipe_detail: Option<RecipeDetailState>,
     recipe_editor: Option<EditorState>,
@@ -52,6 +53,7 @@ impl App {
             mode: AppMode::RecipeList,
             should_quit: false,
             show_help: false,
+            confirm_delete: false,
             recipe_list: RecipeListState::new(),
             recipe_detail: None,
             recipe_editor: None,
@@ -221,6 +223,7 @@ impl App {
 
     fn navigate_to(&mut self, mode: AppMode, rt: &tokio::runtime::Runtime) {
         self.show_help = false;
+        self.confirm_delete = false;
         match mode {
             AppMode::RecipeList => {
                 let _ = rt.block_on(self.load_recipes());
@@ -244,6 +247,7 @@ impl App {
 
     fn go_back(&mut self) {
         self.show_help = false;
+        self.confirm_delete = false;
         self.mode = match self.mode {
             AppMode::RecipeDetail => AppMode::RecipeList,
             AppMode::RecipeEditor => AppMode::RecipeDetail,
@@ -283,6 +287,44 @@ impl App {
         self.status_message = format!("Imported: {}", imported.recipe.name);
         self.load_recipes().await?;
         Ok(())
+    }
+
+    async fn delete_shopping_item(&mut self, id: Uuid) -> Result<()> {
+        self.shopping.delete_item(id).await?;
+        self.load_shopping_list().await?;
+        self.status_message = "Item removed".to_string();
+        Ok(())
+    }
+
+    fn handle_paste(&mut self, text: &str) {
+        let text = text.trim();
+        if text.is_empty() {
+            return;
+        }
+        match self.mode {
+            AppMode::Import if !self.import.importing => {
+                self.import.url = text.to_string();
+                self.import.cursor_pos = self.import.url.len();
+            }
+            AppMode::RecipeList if self.recipe_list.search_active() => {
+                for c in text.chars() {
+                    self.recipe_list.push_search(c);
+                }
+            }
+            AppMode::ShoppingList if self.shopping_list.adding_item() => {
+                for c in text.chars() {
+                    self.shopping_list.push_char(c);
+                }
+            }
+            AppMode::RecipeEditor => {
+                if let Some(editor) = &mut self.recipe_editor {
+                    for c in text.chars() {
+                        editor.push_char(c);
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 
     async fn create_sample_recipe(&mut self) -> Result<()> {
@@ -436,7 +478,12 @@ impl App {
                         }
                         AppMode::RecipeDetail => {
                             if let Some(detail) = &self.recipe_detail {
-                                ui::recipe_detail::render(frame, content, detail);
+                                ui::recipe_detail::render(
+                                    frame,
+                                    content,
+                                    detail,
+                                    &self.status_message,
+                                );
                             }
                         }
                         AppMode::RecipeEditor => {
@@ -446,23 +493,35 @@ impl App {
                         }
                         AppMode::Import => ui::import::render(frame, content, &self.import),
                         AppMode::MealPlan => {
-                            ui::meal_plan::render(frame, content, &mut self.meal_plan);
+                            ui::meal_plan::render(
+                                frame,
+                                content,
+                                &mut self.meal_plan,
+                                &self.status_message,
+                            );
                         }
                         AppMode::ShoppingList => {
-                            ui::shopping_list::render(frame, content, &mut self.shopping_list);
+                            ui::shopping_list::render(
+                                frame,
+                                content,
+                                &mut self.shopping_list,
+                                &self.status_message,
+                            );
                         }
                     }
-                    ui::status_bar::render(frame, nav, self.mode.nav_tab());
+                    ui::status_bar::render(frame, nav, self.mode.nav_tab(), &self.status_message);
                 } else {
                     ui::help::render(frame, frame.area());
                 }
             })?;
 
             if event::poll(std::time::Duration::from_millis(100))? {
-                if let Event::Key(key) = event::read()? {
-                    if key.kind == KeyEventKind::Press {
+                match event::read()? {
+                    Event::Key(key) if key.kind == KeyEventKind::Press => {
                         self.handle_key(key.code, key.modifiers, rt);
                     }
+                    Event::Paste(text) => self.handle_paste(&text),
+                    _ => {}
                 }
             }
         }
@@ -650,7 +709,14 @@ impl App {
                     }
                 } else {
                     match key {
-                        KeyCode::Esc | KeyCode::Char('b') => self.mode = AppMode::RecipeList,
+                        KeyCode::Esc | KeyCode::Char('b') => {
+                            if self.confirm_delete {
+                                self.confirm_delete = false;
+                                self.status_message = "Delete cancelled".to_string();
+                            } else {
+                                self.mode = AppMode::RecipeList;
+                            }
+                        }
                         KeyCode::Down | KeyCode::Char('j') => {
                             if let Some(d) = &mut self.recipe_detail {
                                 d.scroll_down();
@@ -674,8 +740,15 @@ impl App {
                             }
                         }
                         KeyCode::Char('d') => {
-                            if let Err(e) = rt.block_on(self.delete_current_recipe()) {
-                                self.status_message = format!("Error: {}", e);
+                            if self.confirm_delete {
+                                self.confirm_delete = false;
+                                if let Err(e) = rt.block_on(self.delete_current_recipe()) {
+                                    self.status_message = format!("Error: {}", e);
+                                }
+                            } else {
+                                self.confirm_delete = true;
+                                self.status_message =
+                                    "Press d again to delete, Esc to cancel".to_string();
                             }
                         }
                         KeyCode::Char('+') | KeyCode::Char('=') => {
@@ -741,6 +814,15 @@ impl App {
                         self.status_message = format!("Error: {}", e);
                     }
                 }
+                KeyCode::Enter => {
+                    if let Some(id) = self.meal_plan.selected_recipe_id() {
+                        if let Err(e) = rt.block_on(self.load_recipe_detail(id)) {
+                            self.status_message = format!("Error: {}", e);
+                        } else {
+                            self.mode = AppMode::RecipeDetail;
+                        }
+                    }
+                }
                 _ => {}
             },
             AppMode::ShoppingList => {
@@ -771,6 +853,14 @@ impl App {
                             }
                         }
                         KeyCode::Char('a') => self.shopping_list.start_add_item(),
+                        KeyCode::Char('v') => self.shopping_list.toggle_show_checked(),
+                        KeyCode::Delete => {
+                            if let Some(id) = self.shopping_list.selected_item_id() {
+                                if let Err(e) = rt.block_on(self.delete_shopping_item(id)) {
+                                    self.status_message = format!("Error: {}", e);
+                                }
+                            }
+                        }
                         KeyCode::Char('g') => {
                             if let Err(e) = rt.block_on(self.generate_shopping_from_meal_plan()) {
                                 self.status_message = format!("Error: {}", e);

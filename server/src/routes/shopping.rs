@@ -101,6 +101,18 @@ pub async fn toggle(
     Ok("toggled")
 }
 
+pub async fn delete_item(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<Uuid>,
+) -> Result<&'static str, (StatusCode, String)> {
+    state
+        .shopping
+        .delete_item(id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok("deleted")
+}
+
 pub async fn clear_checked(
     State(state): State<Arc<AppState>>,
 ) -> Result<&'static str, (StatusCode, String)> {

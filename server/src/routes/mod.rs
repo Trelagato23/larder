@@ -8,6 +8,7 @@ use tower_http::services::ServeDir;
 use crate::AppState;
 
 pub mod cookbooks;
+pub mod export;
 pub mod health;
 pub mod import;
 pub mod meal_plans;
@@ -32,6 +33,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         )
         .route("/api/recipes/{id}/ingredients", get(recipes::ingredients))
         .route("/api/recipes/{id}/steps", get(recipes::steps))
+        .route("/api/export", get(export::handler))
+        .route("/api/stats", get(export::count))
         .route("/api/import", post(import::handler))
         .route("/api/meal-plans", get(meal_plans::list).post(meal_plans::set_meal))
         .route("/api/meal-plans/clear", post(meal_plans::clear_meal))
@@ -42,6 +45,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/shopping", get(shopping::list).post(shopping::add_item))
         .route("/api/shopping/clear-checked", post(shopping::clear_checked))
         .route("/api/shopping/{id}/toggle", post(shopping::toggle))
+        .route(
+            "/api/shopping/{id}",
+            axum::routing::delete(shopping::delete_item),
+        )
         .route("/api/tags", get(tags::list))
         .route("/api/recipes/{id}/tags", get(tags::recipe_tags).post(tags::add_recipe_tag))
         .route(

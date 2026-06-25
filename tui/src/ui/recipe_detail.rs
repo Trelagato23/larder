@@ -153,19 +153,19 @@ impl RecipeDetailState {
     }
 }
 
-pub fn render(frame: &mut Frame, area: Rect, state: &RecipeDetailState) {
+pub fn render(frame: &mut Frame, area: Rect, state: &RecipeDetailState, status: &str) {
     if state.cooking_mode() {
-        render_cooking_mode(frame, area, state);
+        render_cooking_mode(frame, area, state, status);
         return;
     }
 
+    let has_tags = !state.tags.is_empty();
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([
             Constraint::Length(5),
-            Constraint::Length(3),
-            Constraint::Min(1),
+            Constraint::Length(if has_tags { 3 } else { 0 }),
             Constraint::Min(1),
             Constraint::Length(1),
         ])
@@ -235,7 +235,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &RecipeDetailState) {
         Paragraph::new(header_lines).block(Block::default().borders(Borders::ALL).title("Recipe"));
     frame.render_widget(header, chunks[0]);
 
-    if !state.tags.is_empty() {
+    if has_tags {
         let mut tag_spans = Vec::new();
         for t in &state.tags {
             tag_spans.push(Span::styled(
@@ -249,58 +249,64 @@ pub fn render(frame: &mut Frame, area: Rect, state: &RecipeDetailState) {
         frame.render_widget(tags_widget, chunks[1]);
     }
 
-    let ingredient_lines: Vec<Line> = state
-        .ingredients
-        .iter()
-        .map(|i| {
-            Line::from(vec![
-                Span::raw("  "),
-                Span::styled(
-                    format!("- {}", state.scaled_ingredient_display(i)),
-                    Style::default().fg(Color::White),
-                ),
-            ])
-        })
-        .collect();
+    let mut body_lines: Vec<Line> = vec![Line::from(vec![Span::styled(
+        "Ingredients",
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+    )])];
 
-    let ingredients = Paragraph::new(ingredient_lines)
-        .block(Block::default().borders(Borders::ALL).title("Ingredients"));
-    frame.render_widget(ingredients, chunks[2]);
+    for i in &state.ingredients {
+        body_lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(
+                format!("- {}", state.scaled_ingredient_display(i)),
+                Style::default().fg(Color::White),
+            ),
+        ]));
+    }
 
-    let step_lines: Vec<Line> = state
-        .steps
-        .iter()
-        .flat_map(|s| {
-            let mut lines = vec![Line::from(vec![Span::styled(
-                format!("Step {}: ", s.position),
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            )])];
-            lines.push(Line::from(Span::raw(&s.instruction)));
-            if let Some(timer) = s.timer_seconds {
-                let min = timer / 60;
-                let sec = timer % 60;
-                lines.push(Line::from(vec![Span::styled(
-                    format!("  [timer: {}:{:02}]", min, sec),
-                    Style::default().fg(Color::Cyan),
-                )]));
-            }
-            lines.push(Line::from(""));
-            lines
-        })
-        .collect();
+    body_lines.push(Line::from(""));
+    body_lines.push(Line::from(vec![Span::styled(
+        "Steps",
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+    )]));
 
-    let steps =
-        Paragraph::new(step_lines).block(Block::default().borders(Borders::ALL).title("Steps"));
-    frame.render_widget(steps, chunks[3]);
+    for s in &state.steps {
+        body_lines.push(Line::from(vec![Span::styled(
+            format!("Step {}: ", s.position),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]));
+        body_lines.push(Line::from(Span::raw(&s.instruction)));
+        if let Some(timer) = s.timer_seconds {
+            let min = timer / 60;
+            let sec = timer % 60;
+            body_lines.push(Line::from(vec![Span::styled(
+                format!("  [timer: {}:{:02}]", min, sec),
+                Style::default().fg(Color::Cyan),
+            )]));
+        }
+        body_lines.push(Line::from(""));
+    }
 
-    let footer = Paragraph::new("Esc/b: back | c: cook | e: edit | +/-: scale | ?: help")
-    .style(Style::default().fg(Color::DarkGray));
-    frame.render_widget(footer, chunks[4]);
+    let body = Paragraph::new(body_lines)
+        .block(Block::default().borders(Borders::ALL).title("Recipe"))
+        .scroll((0, state.scroll));
+    frame.render_widget(body, chunks[2]);
+
+    let mut footer = "Esc/b: back | j/k: scroll | c: cook | e: edit | d: delete | +/-: scale | g: shop | ?: help".to_string();
+    if !status.is_empty() {
+        footer = format!("{} | {}", status, footer);
+    }
+    let footer = Paragraph::new(footer).style(Style::default().fg(Color::DarkGray));
+    frame.render_widget(footer, chunks[3]);
 }
 
-fn render_cooking_mode(frame: &mut Frame, area: Rect, state: &RecipeDetailState) {
+fn render_cooking_mode(frame: &mut Frame, area: Rect, state: &RecipeDetailState, status: &str) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(2)
@@ -369,7 +375,11 @@ fn render_cooking_mode(frame: &mut Frame, area: Rect, state: &RecipeDetailState)
         frame.render_widget(step_widget, chunks[1]);
     }
 
-    let footer = Paragraph::new("j/k: steps | Space: timer | Esc: exit cook mode | ?: help")
+    let mut footer_text = "j/k: steps | Space: timer | Esc: exit cook mode | ?: help".to_string();
+    if !status.is_empty() {
+        footer_text = format!("{} | {}", status, footer_text);
+    }
+    let footer = Paragraph::new(footer_text)
     .style(Style::default().fg(Color::DarkGray));
     frame.render_widget(footer, chunks[2]);
 }
