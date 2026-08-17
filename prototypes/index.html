@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Larder — Design preview</title>
+  <style>
+    :root {
+      --bg: #12141a;
+      --bar: #1c2030;
+      --text: #e8eaef;
+      --muted: #8b92a8;
+      --accent: #ffc86b;
+      --border: #2a3144;
+      --frame-w: 390px;
+      --frame-h: 780px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .toolbar {
+      background: var(--bar);
+      border-bottom: 1px solid var(--border);
+      padding: 0.65rem 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.65rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .toolbar h1 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-right: 0.5rem;
+      letter-spacing: 0.02em;
+    }
+    .toolbar h1 span { color: var(--accent); font-weight: 600; }
+    .tabs { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .tabs button {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.45rem 0.85rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .tabs button.active {
+      background: var(--accent);
+      color: #1a1408;
+      border-color: var(--accent);
+    }
+    .tabs button kbd {
+      font-size: 0.7rem;
+      opacity: 0.7;
+      margin-left: 0.25rem;
+      font-family: inherit;
+    }
+    .toolbar-actions {
+      margin-left: auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .toolbar-actions label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .toolbar-actions select,
+    .toolbar-actions button {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.65rem;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+    .toolbar-actions a {
+      color: var(--accent);
+      font-size: 0.82rem;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .toolbar-actions a:hover { text-decoration: underline; }
+    .hint {
+      width: 100%;
+      font-size: 0.75rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .stage {
+      padding: 1.25rem 1rem 2rem;
+      min-height: calc(100vh - 80px);
+    }
+    /* Single view */
+    .single {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .single.hidden { display: none; }
+    .frame-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-align: center;
+    }
+    .frame-label strong { color: var(--text); display: block; font-size: 0.95rem; margin-bottom: 0.15rem; }
+    .device {
+      width: var(--frame-w);
+      height: var(--frame-h);
+      border: 3px solid #333945;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.45);
+      background: #fff;
+    }
+    .device iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+    }
+    .frame-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .frame-actions a, .frame-actions button {
+      font-size: 0.8rem;
+      color: var(--accent);
+      background: transparent;
+      border: 1px solid var(--border);
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+      cursor: pointer;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    /* Compare view */
+    .compare {
+      display: none;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+    .compare.visible { display: flex; }
+    .compare .device { transform: scale(0.92); transform-origin: top center; }
+    @media (max-width: 1400px) {
+      .compare .device { transform: scale(0.78); }
+    }
+    @media (max-width: 1100px) {
+      .compare .device { transform: scale(0.65); }
+    }
+    @media (max-width: 900px) {
+      .compare { flex-direction: column; align-items: center; }
+      .compare .device { transform: none; width: min(var(--frame-w), 100vw - 2rem); }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>Larder <span>design preview</span></h1>
+    <div class="tabs" role="tablist">
+      <button type="button" class="active" data-tab="current" role="tab" aria-selected="true">Current live <kbd>1</kbd></button>
+      <button type="button" data-tab="kitchen" role="tab">Kitchen <kbd>2</kbd></button>
+      <button type="button" data-tab="office" role="tab">Office <kbd>3</kbd></button>
+      <button type="button" data-tab="compare" role="tab">Compare all <kbd>C</kbd></button>
+    </div>
+    <div class="toolbar-actions">
+      <label>Device
+        <select id="device-size" aria-label="Frame size">
+          <option value="390">Phone (390×780)</option>
+          <option value="768">Tablet (768×1024)</option>
+        </select>
+      </label>
+      <button type="button" id="reload-live" title="Reload live app iframe">↻ Live</button>
+      <a href="/" target="_blank" rel="noopener">Open live app ↗</a>
+      <a href="/prototypes/kitchen-board.html" target="_blank" rel="noopener">Kitchen only ↗</a>
+      <a href="/prototypes/office-board.html" target="_blank" rel="noopener">Office only ↗</a>
+    </div>
+    <p class="hint">Live app may show login inside the frame — use <code>kitchen@larder.local</code> / <code>kitchen</code> or <code>manager@larder.local</code> / <code>manager</code>. Keys: <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>C</kbd></p>
+  </div>
+
+  <div class="stage">
+    <div class="single" id="view-single">
+      <div class="frame-label" id="single-label">
+        <strong>Current live</strong>
+        Live SPA — kitchen/office modes, co-op light/dark
+      </div>
+      <div class="device"><iframe id="frame-single" title="Preview" src="/"></iframe></div>
+      <div class="frame-actions">
+        <a id="single-open" href="/" target="_blank" rel="noopener">Open full screen ↗</a>
+        <button type="button" id="single-reload">Reload</button>
+      </div>
+    </div>
+
+    <div class="compare" id="view-compare">
+      <div>
+        <div class="frame-label"><strong>Current live</strong>Today</div>
+        <div class="device"><iframe id="frame-current" title="Current live" src="/"></iframe></div>
+        <div class="frame-actions"><a href="/" target="_blank" rel="noopener">Open ↗</a></div>
+      </div>
+      <div>
+        <div class="frame-label"><strong>Kitchen</strong>Proposed floor mode</div>
+        <div class="device"><iframe id="frame-kitchen" title="Kitchen prototype" src="kitchen-board.html"></iframe></div>
+        <div class="frame-actions"><a href="kitchen-board.html" target="_blank" rel="noopener">Open ↗</a></div>
+      </div>
+      <div>
+        <div class="frame-label"><strong>Office</strong>Proposed manager mode</div>
+        <div class="device"><iframe id="frame-office" title="Office prototype" src="office-board.html"></iframe></div>
+        <div class="frame-actions"><a href="office-board.html" target="_blank" rel="noopener">Open ↗</a></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SOURCES = {
+      current: { src: '/', label: 'Current live', desc: 'Live SPA — kitchen/office modes, co-op light/dark', open: '/' },
+      kitchen: { src: 'kitchen-board.html', label: 'Kitchen', desc: 'Proposed floor mode — minimal chrome, dept stripes', open: 'kitchen-board.html' },
+      office: { src: 'office-board.html', label: 'Office', desc: 'Proposed manager mode — costs, Data nav', open: 'office-board.html' },
+    };
+    let activeTab = 'current';
+
+    const singleView = document.getElementById('view-single');
+    const compareView = document.getElementById('view-compare');
+    const frameSingle = document.getElementById('frame-single');
+    const singleLabel = document.getElementById('single-label');
+    const singleOpen = document.getElementById('single-open');
+    const deviceSelect = document.getElementById('device-size');
+
+    function setFrameSize(w) {
+      const width = parseInt(w, 10);
+      const height = width >= 768 ? 1024 : 780;
+      document.documentElement.style.setProperty('--frame-w', width + 'px');
+      document.documentElement.style.setProperty('--frame-h', height + 'px');
+    }
+
+    function setTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll('.tabs button').forEach(btn => {
+        const on = btn.dataset.tab === tab;
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      if (tab === 'compare') {
+        singleView.classList.add('hidden');
+        compareView.classList.add('visible');
+      } else {
+        singleView.classList.remove('hidden');
+        compareView.classList.remove('visible');
+        const s = SOURCES[tab];
+        frameSingle.src = s.src;
+        singleLabel.innerHTML = '<strong>' + s.label + '</strong>' + s.desc;
+        singleOpen.href = s.open;
+      }
+    }
+
+    document.querySelectorAll('.tabs button').forEach(btn => {
+      btn.addEventListener('click', () => setTab(btn.dataset.tab));
+    });
+
+    deviceSelect.addEventListener('change', () => setFrameSize(deviceSelect.value));
+    setFrameSize(deviceSelect.value);
+
+    document.getElementById('reload-live').addEventListener('click', () => {
+      document.getElementById('frame-current').src = '/';
+      if (activeTab === 'current') frameSingle.src = '/';
+    });
+    document.getElementById('single-reload').addEventListener('click', () => {
+      frameSingle.src = frameSingle.src;
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.target.matches('input, textarea, select')) return;
+      if (e.key === '1') setTab('current');
+      if (e.key === '2') setTab('kitchen');
+      if (e.key === '3') setTab('office');
+      if (e.key === 'c' || e.key === 'C') setTab('compare');
+    });
+
+    // Deep-link: /prototypes/?view=kitchen|office|compare|current
+    const params = new URLSearchParams(location.search);
+    const view = params.get('view');
+    if (view && (SOURCES[view] || view === 'compare')) setTab(view);
+  </script>
+</body>
+</html>

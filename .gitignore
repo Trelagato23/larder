@@ -1,0 +1,26 @@
+# Rust
+/target/
+*.db
+
+# Local
+.env
+
+# Co-op source dumps / generated bundles (not for git)
+/data/
+
+# Agent / brainstorm scratch (keep local, never publish)
+.superpowers/
+docs/superpowers/
+
+# Editors
+*.swp
+.vscode/
+.idea/
+
+# Local tooling (e.g. cloudflared binary for demo tunnels)
+.tools/
+
+# Python
+scripts/__pycache__/
+__pycache__/
+*.pyc

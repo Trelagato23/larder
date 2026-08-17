@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Larder — Feature walkthrough</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #faf8f4;
+      --surface: #ffffff;
+      --surface-2: #efe9df;
+      --header: #b42318;
+      --header-deep: #8f1c13;
+      --ink: #1a1614;
+      --muted: #6b635a;
+      --faint: #8a8178;
+      --border: #e8e0d4;
+      --accent-soft: #fdecea;
+      --shadow: rgba(31, 26, 23, 0.1);
+      --font-display: "Libre Baskerville", Georgia, serif;
+      --font-body: "IBM Plex Sans", system-ui, sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+      --slide-ms: 6500;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-body);
+      overflow: hidden;
+    }
+
+    body {
+      background:
+        radial-gradient(1200px 600px at 80% -10%, #f3e6d8 0%, transparent 55%),
+        radial-gradient(900px 500px at -10% 110%, #f0ddd6 0%, transparent 50%),
+        var(--bg);
+    }
+
+    .stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 1.25rem;
+    }
+
+    .deck {
+      position: relative;
+      width: min(960px, 100%);
+      height: min(620px, calc(100vh - 5.5rem));
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 24px 60px var(--shadow);
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .deck-header {
+      height: 52px;
+      background: linear-gradient(180deg, var(--header) 0%, var(--header-deep) 100%);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.1rem;
+      position: relative;
+      z-index: 3;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.05;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .brand .coop { font-size: 0.95rem; }
+    .brand .app { font-size: 0.95rem; opacity: 0.92; text-align: center; }
+
+    .deck-meta {
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      opacity: 0.9;
+      font-family: var(--font-mono);
+    }
+
+    .slides {
+      position: relative;
+      height: calc(100% - 52px);
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      padding: 2rem 2.25rem 1.5rem;
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 1.5rem;
+      align-items: center;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(28px);
+      transition:
+        opacity 0.55s var(--ease),
+        transform 0.55s var(--ease),
+        visibility 0s linear 0.55s;
+      pointer-events: none;
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(0);
+      transition:
+        opacity 0.55s var(--ease),
+        transform 0.55s var(--ease),
+        visibility 0s;
+      pointer-events: auto;
+      z-index: 1;
+    }
+
+    .slide.exit-left {
+      opacity: 0;
+      transform: translateX(-24px);
+      visibility: hidden;
+    }
+
+    .slide.full {
+      grid-template-columns: 1fr;
+      text-align: center;
+      justify-items: center;
+    }
+
+    .kicker {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--header);
+      margin-bottom: 0.65rem;
+    }
+
+    .slide.enter .kicker {
+      animation: rise 0.55s var(--ease) 0.08s both;
+    }
+
+    h2 {
+      font-family: var(--font-display);
+      font-size: clamp(1.7rem, 3.2vw, 2.35rem);
+      line-height: 1.15;
+      font-weight: 700;
+      margin-bottom: 0.85rem;
+      max-width: 18ch;
+    }
+
+    .slide.full h2 { max-width: 22ch; margin-inline: auto; }
+
+    .slide.enter h2 {
+      animation: rise 0.6s var(--ease) 0.16s both;
+    }
+
+    .lede {
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.45;
+      max-width: 34ch;
+    }
+
+    .slide.full .lede {
+      max-width: 42ch;
+      margin-inline: auto;
+    }
+
+    .slide.enter .lede {
+      animation: rise 0.6s var(--ease) 0.28s both;
+    }
+
+    .visual {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      min-height: 280px;
+      padding: 1.1rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide.enter .visual {
+      animation: rise-scale 0.7s var(--ease) 0.22s both;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      box-shadow: 0 8px 24px rgba(31, 26, 23, 0.06);
+    }
+
+    .panel + .panel { margin-top: 0.65rem; }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .label { color: var(--faint); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; }
+    .value { font-weight: 600; font-size: 0.98rem; }
+    .mono { font-family: var(--font-mono); }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 0.65rem 0.8rem;
+      background: #fff;
+      margin-bottom: 0.75rem;
+    }
+
+    .search-box .cursor {
+      width: 2px;
+      height: 1.05em;
+      background: var(--header);
+      animation: blink 1s step-end infinite;
+    }
+
+    .hit {
+      padding: 0.55rem 0.65rem;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+      font-size: 0.92rem;
+    }
+
+    .slide.enter .hit {
+      animation: rise 0.45s var(--ease) both;
+    }
+    .slide.enter .hit:nth-child(2) { animation-delay: 0.55s; }
+    .slide.enter .hit:nth-child(3) { animation-delay: 0.7s; }
+    .slide.enter .hit:nth-child(4) { animation-delay: 0.85s; }
+
+    .hit.active {
+      background: var(--accent-soft);
+      outline: 1px solid #f0c4bf;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      background: var(--accent-soft);
+      color: var(--header);
+      border: 1px solid #f0c4bf;
+    }
+
+    .badge.warn {
+      background: #fff4e5;
+      color: #8a4b00;
+      border-color: #f0d6a8;
+    }
+
+    .scale-num {
+      font-family: var(--font-display);
+      font-size: 3.2rem;
+      font-weight: 700;
+      color: var(--header);
+      line-height: 1;
+    }
+
+    .scale-unit {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-top: 0.25rem;
+    }
+
+    .convert-line {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 0.85rem;
+    }
+
+    .convert-line .pill {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.7rem 0.75rem;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    .arrow { color: var(--header); font-weight: 700; }
+
+    .checklist li {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.45rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.95rem;
+    }
+
+    .checklist li:last-child { border-bottom: 0; }
+
+    .slide.enter .checklist li {
+      animation: rise-x 0.45s var(--ease) both;
+    }
+    .slide.enter .checklist li:nth-child(1) { animation-delay: 0.4s; }
+    .slide.enter .checklist li:nth-child(2) { animation-delay: 0.55s; }
+    .slide.enter .checklist li:nth-child(3) { animation-delay: 0.7s; }
+    .slide.enter .checklist li:nth-child(4) { animation-delay: 0.85s; }
+
+    .check {
+      width: 1.05rem;
+      height: 1.05rem;
+      border-radius: 4px;
+      border: 1.5px solid var(--header);
+      background: var(--header);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 0.7rem;
+      flex-shrink: 0;
+    }
+
+    .cost-roll {
+      display: grid;
+      gap: 0.55rem;
+    }
+
+    .cost-roll .line {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      padding: 0.35rem 0;
+    }
+
+    .cost-roll .total {
+      border-top: 1px dashed var(--border);
+      margin-top: 0.25rem;
+      padding-top: 0.65rem;
+      font-weight: 700;
+    }
+
+    .pulse-cost {
+      color: var(--header);
+      display: inline-block;
+    }
+
+    .slide.enter .pulse-cost {
+      animation: pulse-num 1.8s var(--ease) 0.6s both;
+    }
+
+    .stores {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+      height: 100%;
+    }
+
+    .store {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 220px;
+    }
+
+    .store h3 {
+      font-family: var(--font-display);
+      font-size: 1.2rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .store p { color: var(--muted); font-size: 0.88rem; line-height: 1.35; }
+
+    .store .tag {
+      margin-top: auto;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--header);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .week {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.4rem;
+    }
+
+    .day {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.55rem 0.4rem;
+      text-align: center;
+      min-height: 110px;
+    }
+
+    .slide.enter .day {
+      animation: rise 0.45s var(--ease) both;
+    }
+    .slide.enter .day:nth-child(1) { animation-delay: 0.35s; }
+    .slide.enter .day:nth-child(2) { animation-delay: 0.45s; }
+    .slide.enter .day:nth-child(3) { animation-delay: 0.55s; }
+    .slide.enter .day:nth-child(4) { animation-delay: 0.65s; }
+    .slide.enter .day:nth-child(5) { animation-delay: 0.75s; }
+
+    .day .d {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--faint);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 0.45rem;
+    }
+
+    .day .dish {
+      font-size: 0.78rem;
+      font-weight: 600;
+      line-height: 1.25;
+    }
+
+    .day.today {
+      border-color: #f0c4bf;
+      background: var(--accent-soft);
+    }
+
+    .hero-mark {
+      width: min(180px, 40vw);
+      height: min(180px, 40vw);
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 35% 30%, #f7d4cf 0%, transparent 45%),
+        linear-gradient(160deg, var(--header) 0%, var(--header-deep) 100%);
+      margin: 0.5rem auto 1.4rem;
+      box-shadow: 0 20px 50px rgba(180, 35, 24, 0.28);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 5vw, 2.8rem);
+      font-weight: 700;
+    }
+
+    .slide.enter .hero-mark {
+      animation: pop 0.7s var(--ease) 0.05s both;
+    }
+
+    .closing-note {
+      margin-top: 1.1rem;
+      font-size: 0.9rem;
+      color: var(--faint);
+    }
+
+    .slide.enter .closing-note {
+      animation: rise 0.55s var(--ease) 0.45s both;
+    }
+
+    .controls {
+      position: absolute;
+      left: 50%;
+      bottom: 1rem;
+      transform: translateX(-50%);
+      width: min(960px, calc(100% - 2.5rem));
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .controls > * { pointer-events: auto; }
+
+    .dots {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      border: 0;
+      background: #d6cfc4;
+      cursor: pointer;
+      transition: width 0.3s var(--ease), background 0.3s var(--ease);
+    }
+
+    .dot[aria-current="true"] {
+      width: 22px;
+      background: var(--header);
+    }
+
+    .nav {
+      display: flex;
+      gap: 0.45rem;
+    }
+
+    .nav button, .play {
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(6px);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 0.45rem 0.85rem;
+      font: 600 0.82rem var(--font-body);
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(31, 26, 23, 0.06);
+    }
+
+    .nav button:hover, .play:hover {
+      border-color: #d4c8b8;
+      background: #fff;
+    }
+
+    .progress {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 3px;
+      width: 100%;
+      background: transparent;
+      z-index: 4;
+    }
+
+    .progress > span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: var(--header);
+      transform-origin: left center;
+    }
+
+    .deck.playing .progress > span {
+      animation: progress var(--slide-ms) linear forwards;
+    }
+
+    .hint {
+      position: absolute;
+      top: 0.85rem;
+      right: 1.1rem;
+      font-size: 0.72rem;
+      color: var(--faint);
+      font-family: var(--font-mono);
+      letter-spacing: 0.02em;
+      opacity: 0.85;
+      z-index: 2;
+    }
+
+    @keyframes rise {
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes rise-x {
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes rise-scale {
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes pop {
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+    @keyframes progress {
+      from { width: 0%; }
+      to { width: 100%; }
+    }
+    @keyframes pulse-num {
+      0% { transform: scale(1); }
+      35% { transform: scale(1.12); color: var(--header-deep); }
+      100% { transform: scale(1); }
+    }
+    @keyframes type-caret {
+      from { width: 0; }
+      to { width: 100%; }
+    }
+
+    .typed {
+      display: inline-block;
+      overflow: hidden;
+      white-space: nowrap;
+      max-width: 12ch;
+    }
+
+    .slide.enter .typed {
+      max-width: 0;
+      animation: type-caret 1.1s steps(14, end) 0.35s forwards;
+    }
+
+    @media (max-width: 760px) {
+      .slide {
+        grid-template-columns: 1fr;
+        padding: 1.35rem 1.15rem 4.5rem;
+        align-content: start;
+        gap: 1rem;
+        overflow: auto;
+      }
+      .visual { min-height: 200px; }
+      .week { grid-template-columns: repeat(3, 1fr); }
+      .week .day:nth-child(n+4) { display: none; }
+      .hint { display: none; }
+      .deck { height: min(760px, calc(100vh - 5rem)); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+      .slide.enter .typed { max-width: 12ch !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="deck playing" id="deck" aria-live="polite">
+      <div class="deck-header">
+        <div class="brand">
+          <span class="coop">Lexington Co-op</span>
+          <span class="app">Larder</span>
+        </div>
+        <div class="deck-meta" id="slideLabel">1 / 8</div>
+      </div>
+
+      <div class="hint">← → · Space · click dots</div>
+
+      <div class="slides">
+        <!-- 1 -->
+        <section class="slide full active enter" data-title="Intro">
+          <div>
+            <div class="hero-mark" aria-hidden="true">L</div>
+            <p class="kicker">Kitchen recipe system</p>
+            <h2>Recipes that work on the floor</h2>
+            <p class="lede">Search, scale, cook, and plan — built for PFD tablets and the managers who keep the board stocked.</p>
+          </div>
+        </section>
+
+        <!-- 2 -->
+        <section class="slide" data-title="Search">
+          <div>
+            <p class="kicker">Find it fast</p>
+            <h2>Search the whole library in one box</h2>
+            <p class="lede">Full-text search over names, descriptions, and ingredients — so the line finds the recipe before the rush.</p>
+          </div>
+          <div class="visual">
+            <div class="search-box">
+              <span aria-hidden="true">⌕</span>
+              <span class="typed mono">chicken</span>
+              <span class="cursor" aria-hidden="true"></span>
+            </div>
+            <div class="panel" style="padding:0.35rem">
+              <div class="hit active"><span>Chicken Pot Pie</span><span class="badge">PFD</span></div>
+              <div class="hit"><span>Chicken Salad</span><span class="badge">Deli</span></div>
+              <div class="hit"><span>Chicken Stock</span><span class="badge">Prep</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3 -->
+        <section class="slide" data-title="Scale">
+          <div>
+            <p class="kicker">Scale &amp; convert</p>
+            <h2>Portions that match the pull</h2>
+            <p class="lede">Change servings and convert weight ↔ volume with ingredient density — fewer napkin math mistakes.</p>
+          </div>
+          <div class="visual">
+            <div class="panel">
+              <div class="row">
+                <div>
+                  <div class="label">Servings</div>
+                  <div class="scale-num" id="servingsAnim">24</div>
+                  <div class="scale-unit">batch for Hertel hot bar</div>
+                </div>
+                <div style="text-align:right">
+                  <div class="label">Recipe yield</div>
+                  <div class="value">8 base</div>
+                </div>
+              </div>
+              <div class="convert-line">
+                <div class="pill mono">2 cup flour</div>
+                <span class="arrow">→</span>
+                <div class="pill mono">250 g</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4 -->
+        <section class="slide" data-title="Cook">
+          <div>
+            <p class="kicker">Cook &amp; print</p>
+            <h2>Prep sheets ready for the station</h2>
+            <p class="lede">Cooking mode with timers, scaled lines, and allergen badges that print with the sheet.</p>
+          </div>
+          <div class="visual">
+            <div class="panel">
+              <div class="row" style="margin-bottom:0.55rem">
+                <div class="value">Mac &amp; Cheese — Bake</div>
+                <span class="badge warn">Dairy</span>
+              </div>
+              <ul class="checklist">
+                <li><span class="check">✓</span> Scaled ingredient list</li>
+                <li><span class="check">✓</span> Step timers on tablet</li>
+                <li><span class="check">✓</span> Printable prep sheet</li>
+                <li><span class="check">✓</span> Allergen callouts</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5 -->
+        <section class="slide" data-title="Costs">
+          <div>
+            <p class="kicker">Ingredient master</p>
+            <h2>Update a cost once. Recipes follow.</h2>
+            <p class="lede">Shared ingredients roll through every linked recipe — food cost stays honest when prices move.</p>
+          </div>
+          <div class="visual">
+            <div class="panel cost-roll">
+              <div class="line"><span>Cheddar, shredded</span><span class="mono">$4.12 / lb</span></div>
+              <div class="line"><span>linked recipes</span><span class="mono">18</span></div>
+              <div class="line total">
+                <span>Mac &amp; Cheese food cost</span>
+                <span class="pulse-cost mono">$1.84 / srv</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6 -->
+        <section class="slide" data-title="Plan">
+          <div>
+            <p class="kicker">Weekly menu</p>
+            <h2>See the week before you pull</h2>
+            <p class="lede">Plan the board, then generate production lists from what’s actually scheduled.</p>
+          </div>
+          <div class="visual">
+            <div class="week">
+              <div class="day"><div class="d">Mon</div><div class="dish">Chili + Cornbread</div></div>
+              <div class="day today"><div class="d">Tue</div><div class="dish">Chicken Pot Pie</div></div>
+              <div class="day"><div class="d">Wed</div><div class="dish">Veg Curry</div></div>
+              <div class="day"><div class="d">Thu</div><div class="dish">Meatloaf</div></div>
+              <div class="day"><div class="d">Fri</div><div class="dish">Fish Fry</div></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 7 -->
+        <section class="slide" data-title="Stores">
+          <div>
+            <p class="kicker">Elmwood &amp; Hertel</p>
+            <h2>One recipe library. Store-aware costs.</h2>
+            <p class="lede">Switch location in the header. Shared recipes, local ingredient prices when they differ.</p>
+          </div>
+          <div class="visual">
+            <div class="stores">
+              <div class="store">
+                <div>
+                  <h3>Elmwood</h3>
+                  <p>Shared library · local cost overrides</p>
+                </div>
+                <div class="tag">Active store</div>
+              </div>
+              <div class="store">
+                <div>
+                  <h3>Hertel</h3>
+                  <p>Same recipes · prices that match the invoice</p>
+                </div>
+                <div class="tag">One tap switch</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 8 -->
+        <section class="slide full" data-title="Next">
+          <div>
+            <p class="kicker">What’s next</p>
+            <h2>Try it when you’re ready</h2>
+            <p class="lede">This is a short look at Larder for Lexington Co-op PFD. Feedback on what’s useful — and what’s missing — is welcome.</p>
+            <p class="closing-note">Philip · Larder walkthrough</p>
+          </div>
+        </section>
+      </div>
+
+      <div class="progress" aria-hidden="true"><span id="bar"></span></div>
+    </div>
+
+    <div class="controls">
+      <div class="dots" id="dots" role="tablist" aria-label="Slides"></div>
+      <div class="nav">
+        <button type="button" class="play" id="playBtn" aria-pressed="true">Pause</button>
+        <button type="button" id="prevBtn" aria-label="Previous slide">←</button>
+        <button type="button" id="nextBtn" aria-label="Next slide">→</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const slides = Array.from(document.querySelectorAll(".slide"));
+      const deck = document.getElementById("deck");
+      const dotsWrap = document.getElementById("dots");
+      const label = document.getElementById("slideLabel");
+      const playBtn = document.getElementById("playBtn");
+      const bar = document.getElementById("bar");
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      let i = 0;
+      let playing = !reduce;
+      let timer = null;
+      const DURATION = 6500;
+
+      slides.forEach((_, idx) => {
+        const b = document.createElement("button");
+        b.className = "dot";
+        b.type = "button";
+        b.setAttribute("aria-label", "Go to slide " + (idx + 1));
+        b.addEventListener("click", () => go(idx, true));
+        dotsWrap.appendChild(b);
+      });
+
+      const dots = Array.from(dotsWrap.children);
+
+      function restartProgress() {
+        bar.style.animation = "none";
+        void bar.offsetWidth;
+        if (playing) {
+          deck.classList.add("playing");
+          bar.style.animation = "";
+        } else {
+          deck.classList.remove("playing");
+        }
+      }
+
+      function go(next, user) {
+        if (next === i) {
+          if (user) restartTimer();
+          return;
+        }
+        const prev = slides[i];
+        prev.classList.remove("active", "enter");
+        prev.classList.add("exit-left");
+        setTimeout(() => prev.classList.remove("exit-left"), 560);
+
+        i = (next + slides.length) % slides.length;
+        const cur = slides[i];
+        cur.classList.add("active");
+        // Retrigger entrance animations
+        void cur.offsetWidth;
+        cur.classList.add("enter");
+        dots.forEach((d, di) => {
+          if (di === i) d.setAttribute("aria-current", "true");
+          else d.removeAttribute("aria-current");
+        });
+        slides.forEach((s, si) => s.setAttribute("aria-hidden", si === i ? "false" : "true"));
+        label.textContent = (i + 1) + " / " + slides.length;
+
+        if (cur.dataset.title === "Scale") animateServings();
+        if (user || playing) restartTimer();
+        restartProgress();
+      }
+
+      function restartTimer() {
+        clearTimeout(timer);
+        if (!playing) return;
+        timer = setTimeout(() => go(i + 1, false), DURATION);
+      }
+
+      function setPlaying(on) {
+        playing = on;
+        playBtn.textContent = on ? "Pause" : "Play";
+        playBtn.setAttribute("aria-pressed", on ? "true" : "false");
+        if (on) restartTimer();
+        else clearTimeout(timer);
+        restartProgress();
+      }
+
+      function animateServings() {
+        const el = document.getElementById("servingsAnim");
+        if (!el || reduce) {
+          if (el) el.textContent = "24";
+          return;
+        }
+        let n = 8;
+        el.textContent = String(n);
+        const step = () => {
+          n += 2;
+          el.textContent = String(n);
+          if (n < 24) setTimeout(step, 90);
+        };
+        setTimeout(step, 400);
+      }
+
+      document.getElementById("prevBtn").addEventListener("click", () => go(i - 1, true));
+      document.getElementById("nextBtn").addEventListener("click", () => go(i + 1, true));
+      playBtn.addEventListener("click", () => setPlaying(!playing));
+
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight" || e.key === " ") {
+          e.preventDefault();
+          go(i + 1, true);
+        } else if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          go(i - 1, true);
+        } else if (e.key === "p" || e.key === "P") {
+          setPlaying(!playing);
+        }
+      });
+
+      deck.addEventListener("mouseenter", () => {
+        if (playing) {
+          clearTimeout(timer);
+          deck.classList.remove("playing");
+        }
+      });
+      deck.addEventListener("mouseleave", () => {
+        if (playing) restartTimer();
+        restartProgress();
+      });
+
+      dots[0].setAttribute("aria-current", "true");
+      if (playing) restartTimer();
+      else {
+        playBtn.textContent = "Play";
+        playBtn.setAttribute("aria-pressed", "false");
+      }
+      restartProgress();
+    })();
+  </script>
+</body>
+</html>

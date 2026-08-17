@@ -1,0 +1,62 @@
+/* Larder design tokens — see DESIGN.md */
+:root, body[data-theme="co-op"] {
+            --bg: #faf8f4;
+            --surface: #ffffff;
+            --surface-2: #efe9df;
+            --header-bg: #b42318;
+            --header-text: #ffffff;
+            --text: #1a1614;
+            --muted: #6b635a;
+            --muted-2: #3d3832;
+            --faint: #8a8178;
+            --footer: #8a8178;
+            --accent: #b42318;
+            --accent-hover: #8f1c13;
+            --accent-soft: #fdecea;
+            --danger: #9e1f1f;
+            --danger-bg: #fdecea;
+            --border: #e8e0d4;
+            --shadow: rgba(31, 26, 23, 0.08);
+            --shadow-lg: rgba(31, 26, 23, 0.14);
+            --swatch: #b42318;
+        }
+        /* Night mode — warm, low-glare (kitchen late shift / office after hours) */
+        body[data-theme="co-op-dark"],
+        body[data-theme="night"] {
+            --bg: #12100e;
+            --surface: #1c1916;
+            --surface-2: #26211d;
+            --header-bg: #6e1610;
+            --header-text: #f3ebe3;
+            --text: #ebe4db;
+            --muted: #9a9187;
+            --muted-2: #c9c0b5;
+            --faint: #6f675f;
+            --footer: #6f675f;
+            --accent: #e07062;
+            --accent-hover: #eba092;
+            --accent-soft: #2e1c19;
+            --danger: #f0716a;
+            --danger-bg: #321a1c;
+            --border: #342e29;
+            --shadow: rgba(0,0,0,0.45);
+            --shadow-lg: rgba(0,0,0,0.65);
+            --swatch: #e07062;
+            --card: #1c1916;
+            --paper: #12100e;
+            --ink: #ebe4db;
+            --rule: #342e29;
+            color-scheme: dark;
+        }
+        :root {
+            --touch: 44px;
+            --radius: 8px;
+            --radius-sm: 6px;
+            --font-display: "Libre Baskerville", Georgia, "Times New Roman", serif;
+            --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+            --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+            --card: #ffffff;
+            --paper: #faf8f4;
+            --ink: #1a1614;
+            --rule: #e8e0d4;
+        }

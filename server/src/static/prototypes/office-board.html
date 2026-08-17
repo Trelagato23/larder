@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Larder — Office (prototype)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Libre+Baskerville:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #f6f3ec;
+      --card: #ffffff;
+      --card-2: #efe9df;
+      --ink: #1f1a17;
+      --muted: #5f564c;
+      --rule: #e3dbd0;
+      --brand: #b42318;
+      --brand-soft: #fdecea;
+      --touch: 44px;
+      --radius: 8px;
+      --font-display: "Libre Baskerville", Georgia, serif;
+      --font-body: "IBM Plex Sans", system-ui, sans-serif;
+      --font-mono: "IBM Plex Mono", monospace;
+      --stripe-bakery: #c47a1a;
+      --stripe-default: #b42318;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font-body); background: var(--paper); color: var(--ink); min-height: 100vh; }
+    header {
+      background: var(--brand);
+      color: #fff;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: 0 2px 10px rgba(31, 26, 23, 0.18);
+    }
+    .header-inner { max-width: 960px; margin: 0 auto; padding: 0.75rem 1rem 0.85rem; }
+    .header-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.65rem;
+      margin-bottom: 0.6rem;
+    }
+    header h1 { font-family: var(--font-display); font-size: 1.5rem; }
+    .brand-sub { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.88; }
+    .header-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; font-size: 0.82rem; }
+    .pill {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      padding: 0.25rem 0.55rem;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .header-actions button {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.22);
+      color: #fff;
+      padding: 0.4rem 0.7rem;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font-body);
+    }
+    nav { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    nav button {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      padding: 0.5rem 0.85rem;
+      min-height: var(--touch);
+      border-radius: 6px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font-body);
+    }
+    nav button.active { background: #fff; color: var(--brand); border-color: #fff; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 1rem 1rem 2rem; }
+    .page-intro { color: var(--muted); font-size: 0.92rem; margin-bottom: 0.75rem; }
+    .search-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      background: var(--card);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      padding: 0.65rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 1px 4px rgba(31, 26, 23, 0.06);
+    }
+    .search-bar input, .search-bar select {
+      flex: 1;
+      min-width: 120px;
+      min-height: var(--touch);
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-family: var(--font-body);
+    }
+    .dept-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.75rem; }
+    .dept-chips span {
+      padding: 0.3rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid var(--rule);
+      background: var(--card);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .dept-chips span.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+    .count { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.5rem; }
+    .index-card {
+      background: var(--card);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      padding: 1rem 1rem 1rem 1.2rem;
+      margin-bottom: 0.55rem;
+      position: relative;
+      box-shadow: 0 1px 4px rgba(31, 26, 23, 0.05);
+      cursor: pointer;
+    }
+    .index-card::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+      border-radius: var(--radius) 0 0 var(--radius);
+      background: var(--stripe, var(--stripe-default));
+    }
+    .index-card h2 {
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      color: var(--brand);
+      margin-bottom: 0.2rem;
+    }
+    .index-card .meta { font-size: 0.85rem; color: var(--muted); }
+    .index-card .meta span { margin-right: 0.85rem; }
+    .index-card .cost {
+      margin-top: 0.35rem;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: var(--brand);
+      font-weight: 500;
+    }
+    .index-card .desc {
+      margin-top: 0.35rem;
+      font-size: 0.88rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .proto-note {
+      margin-top: 1.5rem;
+      padding: 0.85rem;
+      border: 1px dashed var(--rule);
+      border-radius: var(--radius);
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="header-top">
+        <div>
+          <h1>Larder</h1>
+          <div class="brand-sub">Store recipes</div>
+        </div>
+        <div class="header-actions">
+          <span class="pill">Elmwood</span>
+          <span>Manager · manager@larder.local</span>
+          <button type="button">Light ▾</button>
+          <button type="button">Log out</button>
+        </div>
+      </div>
+      <nav>
+        <button type="button" class="active">Recipes</button>
+        <button type="button">Ingredients</button>
+        <button type="button">Data</button>
+        <button type="button">Plan ▾</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <p class="page-intro">Manage recipes, ingredients, and costs.</p>
+
+    <div class="search-bar">
+      <input type="search" placeholder="Filter recipes…" aria-label="Search">
+      <select aria-label="Tag filter"><option>All tags</option><option>#bakery</option><option>#lunch</option></select>
+      <button type="button" style="min-height:var(--touch);padding:0 1rem;background:var(--card-2);border:1px solid var(--rule);border-radius:6px;font-weight:600;cursor:pointer">Filter</button>
+    </div>
+
+    <div class="dept-chips">
+      <span class="on">All</span>
+      <span>Bakery</span>
+      <span>Breakfast</span>
+      <span>Lunch</span>
+      <span>Dinner</span>
+    </div>
+
+    <p class="count">6 recipes</p>
+
+    <article class="index-card" style="--stripe: var(--stripe-bakery)">
+      <h2>Country Sourdough Loaf</h2>
+      <div class="meta"><span>45 min</span><span>24 servings</span><span>#bakery</span></div>
+      <div class="cost">Est. food cost $4.82 · 18.2% of menu $26.50</div>
+      <p class="desc">Daily pull — scale by batch for production plan.</p>
+    </article>
+
+    <article class="index-card">
+      <h2>Scrambled Eggs</h2>
+      <div class="meta"><span>10 min</span><span>4 servings</span><span>#breakfast</span></div>
+      <div class="cost">Est. food cost $2.14 · 42.8% of menu $5.00</div>
+    </article>
+
+    <article class="index-card">
+      <h2>Turkey Sandwich</h2>
+      <div class="meta"><span>15 min</span><span>8 servings</span><span>#lunch</span></div>
+      <div class="cost">Est. food cost $6.40 · 32.0% of menu $20.00</div>
+    </article>
+
+    <p class="proto-note"><strong>Office prototype</strong> — full nav, costs on cards, Data + Plan menus. Compare at <code>/prototypes/</code>.</p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Larder — Kitchen Board (prototype)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Libre+Baskerville:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #faf8f4;
+      --card: #ffffff;
+      --ink: #1a1614;
+      --muted: #6b635a;
+      --rule: #e8e0d4;
+      --brand: #b42318;
+      --brand-soft: #fdecea;
+      --touch: 48px;
+      --radius: 8px;
+      --font-display: "Libre Baskerville", Georgia, serif;
+      --font-body: "IBM Plex Sans", system-ui, sans-serif;
+      --stripe-bakery: #c47a1a;
+      --stripe-deli: #2d6a4f;
+      --stripe-breakfast: #d4a017;
+      --stripe-dinner: #7b2d26;
+      --stripe-default: #b42318;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-body);
+      background: var(--paper);
+      color: var(--ink);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Minimal kitchen header */
+    .kitchen-header {
+      background: var(--brand);
+      color: #fff;
+      padding: 0.65rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: 0 2px 8px rgba(26, 22, 20, 0.15);
+    }
+    .kitchen-header h1 {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .kitchen-header .loc {
+      font-size: 0.8rem;
+      font-weight: 600;
+      opacity: 0.9;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .kitchen-header .logout {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      color: #fff;
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 1rem 1rem 2.5rem; }
+    /* Hero search */
+    .search-hero {
+      margin-bottom: 1rem;
+    }
+    .search-hero input {
+      width: 100%;
+      min-height: 52px;
+      font-size: 1.2rem;
+      padding: 0.75rem 1rem;
+      border: 2px solid var(--rule);
+      border-radius: var(--radius);
+      background: var(--card);
+      font-family: var(--font-body);
+    }
+    .search-hero input:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px var(--brand-soft);
+    }
+    .search-hero input::placeholder { color: var(--muted); }
+    /* Dept chips */
+    .dept-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 1.25rem;
+    }
+    .dept-chips button {
+      min-height: 36px;
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid var(--rule);
+      background: var(--card);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font-body);
+    }
+    .dept-chips button.active {
+      background: var(--brand);
+      color: #fff;
+      border-color: var(--brand);
+    }
+    .dept-chips button[data-dept="bakery"].active { background: var(--stripe-bakery); border-color: var(--stripe-bakery); }
+    .dept-chips button[data-dept="deli"].active { background: var(--stripe-deli); border-color: var(--stripe-deli); }
+    .count { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.65rem; }
+    /* Index cards */
+    .index-card {
+      background: var(--card);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.15rem 1.1rem 1.35rem;
+      margin-bottom: 0.65rem;
+      cursor: pointer;
+      position: relative;
+      box-shadow: 0 1px 3px rgba(26, 22, 20, 0.06);
+      transition: box-shadow 0.15s, transform 0.1s;
+      min-height: var(--touch);
+    }
+    .index-card::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      border-radius: var(--radius) 0 0 var(--radius);
+      background: var(--stripe, var(--stripe-default));
+    }
+    .index-card::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 5px;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, var(--rule), transparent 60%);
+    }
+    .index-card:hover {
+      box-shadow: 0 4px 14px rgba(26, 22, 20, 0.1);
+      transform: translateY(-1px);
+    }
+    .index-card h2 {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      color: var(--ink);
+      margin-bottom: 0.25rem;
+      line-height: 1.25;
+    }
+    .index-card .meta {
+      font-size: 0.95rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .index-card .meta span { margin-right: 1rem; }
+    .proto-note {
+      margin-top: 2rem;
+      padding: 1rem;
+      border: 1px dashed var(--rule);
+      border-radius: var(--radius);
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .proto-note strong { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <header class="kitchen-header">
+    <div>
+      <h1>Larder</h1>
+      <div class="loc">Elmwood · Kitchen</div>
+    </div>
+    <button type="button" class="logout">Log out</button>
+  </header>
+
+  <main class="wrap">
+    <div class="search-hero">
+      <input type="search" placeholder="Find a recipe…" autofocus aria-label="Search recipes">
+    </div>
+
+    <div class="dept-chips" role="group" aria-label="Department">
+      <button type="button" class="active">All</button>
+      <button type="button" data-dept="bakery">Bakery</button>
+      <button type="button" data-dept="deli">Deli</button>
+      <button type="button">Breakfast</button>
+      <button type="button">Lunch</button>
+      <button type="button">Dinner</button>
+    </div>
+
+    <p class="count">6 recipes</p>
+
+    <article class="index-card" style="--stripe: var(--stripe-bakery)">
+      <h2>Country Sourdough Loaf</h2>
+      <div class="meta"><span>45 min</span><span>24 servings</span></div>
+    </article>
+
+    <article class="index-card" style="--stripe: var(--stripe-breakfast)">
+      <h2>Scrambled Eggs</h2>
+      <div class="meta"><span>10 min</span><span>4 servings</span></div>
+    </article>
+
+    <article class="index-card" style="--stripe: var(--stripe-deli)">
+      <h2>Turkey Sandwich</h2>
+      <div class="meta"><span>15 min</span><span>8 servings</span></div>
+    </article>
+
+    <article class="index-card" style="--stripe: var(--stripe-dinner)">
+      <h2>Garlic Pasta</h2>
+      <div class="meta"><span>25 min</span><span>6 servings</span></div>
+    </article>
+
+    <article class="index-card">
+      <h2>Apple and Peanut Butter</h2>
+      <div class="meta"><span>5 min</span><span>2 servings</span></div>
+    </article>
+
+    <p class="proto-note">
+      <strong>Kitchen Board prototype</strong> — open this file in a browser to compare against live Larder.
+      No theme picker, no manager chrome, index cards with dept stripes.
+      See <code>projects/larder/DESIGN.md</code> for tokens and implementation phases.
+    </p>
+  </main>
+
+  <script>
+    document.querySelectorAll('.dept-chips button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.dept-chips button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>
